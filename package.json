@@ -1,0 +1,25 @@
+{
+  "name": "schema-ui-angular-fields",
+  "version": "0.1.0",
+  "description": "Schema UI - Angular Fields Implementation",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "scripts": {
+    "build": "rm -rf dist/ && tsc"
+  },
+  "files": [
+    "dist/**/*",
+    "typings/**/*",
+    "typings.json"
+  ],
+  "author": "J. van Harn <jeffrey.wizkid@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@angular/compiler": "^4.2.5",
+    "@angular/core": "^4.2.5",
+    "json-schema-services": "^0.5.4",
+    "lodash": "^4.17.4",
+    "rxjs": "^5.4.1"
+  }
+}
