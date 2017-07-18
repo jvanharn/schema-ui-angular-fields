@@ -144,8 +144,8 @@ export class FieldContextProvider {
     public constructor(
         @Inject(SchemaNavigator) public schema: SchemaNavigator,
         @Inject(ValidatorCache) public validators: ValidatorCache,
-        @Inject('formMode') @Optional() private readonly mode: FormModes = 'edit',
-        @Inject('formInitialValues') @Optional() private readonly initialValues?: any,
+        @Inject('formMode') @Optional() public readonly mode: FormModes = 'edit',
+        @Inject('formInitialValues') @Optional() public readonly initialValues?: any,
         @Inject('parentFieldContext') @Optional() private readonly parent?: FieldContextProvider,
         @Inject('translateMessageOrDefault') @Optional() private translateMessageOrDefault?: translateMessageOrDefaultFunc,
         @Inject(MessageBundle) @Optional() private messages?: MessageBundle,
@@ -224,7 +224,7 @@ export class FieldContextProvider {
     }
 //endregion
 
-//region Field default values
+//region Field (default) values
     /**
      * Get the initial value for the given field.
      */
@@ -240,6 +240,45 @@ export class FieldContextProvider {
             debug(`getFieldInitialValue: something went wrong fetching the initial value for fields "${field.name}".`, e);
             return null;
         }
+    }
+
+    /**
+     * Get the value of the field with the given id.
+     *
+     * @param fieldId Field identity.
+     */
+    public getFieldValue(matcher: (field: FormFieldViewModel<FormField<any>>) => boolean): any {
+        var field = this.find(matcher);
+        if (field && field.instance) {
+            return field.instance.value;
+        }
+        return null;
+    }
+
+    /**
+     * Get the value of the field with the given id.
+     *
+     * @param fieldId Field identity.
+     */
+    public getFieldValueById(fieldId: string): any {
+        var field = this.find(x => x.ctx.id === fieldId);
+        if (field && field.instance) {
+            return field.instance.value;
+        }
+        return null;
+    }
+
+    /**
+     * Get the value of the field with the given id.
+     *
+     * @param fieldName
+     */
+    public getFieldValueByName(fieldName: string): any {
+        var field = this.find(x => x.ctx.name === fieldName);
+        if (field && field.instance) {
+            return field.instance.value;
+        }
+        return null;
     }
 //endregion
 

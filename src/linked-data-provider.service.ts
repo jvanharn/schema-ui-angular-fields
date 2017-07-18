@@ -86,10 +86,10 @@ export class LinkedDataProvider {
      *
      * @param context The context of the form (e.g. other form values)
      */
-    public resolveSimplifiedLinkedData(context?: any, forceReload?: boolean): Promise<SimplifiedLinkedResource[]> {
+    public resolveSimplifiedLinkedData(context?: any, forceReload?: boolean, includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
         return this.chooseAppropriateContext(context).then(ctx =>
             this.resolveLinkedData(ctx, forceReload).then(items =>
-                this.mapLinkedData(items, ctx, forceReload)));
+                this.mapLinkedData(items, ctx, forceReload, includeOriginal)));
     }
 
     /**
@@ -98,9 +98,9 @@ export class LinkedDataProvider {
      * @param items The data to convert/map.
      * @param context The context of the form (e.g. other form values)
      */
-    public mapLinkedData(items: any[], context?: any, forceReload?: boolean): Promise<SimplifiedLinkedResource[]> {
+    public mapLinkedData(items: any[], context?: any, forceReload?: boolean, includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
         return this.chooseAppropriateContext(context).then(ctx =>
-            this.mapMultipleChoice(items, ctx, forceReload));
+            this.mapMultipleChoice(items, ctx, forceReload, includeOriginal));
     }
 
     /**
@@ -143,14 +143,18 @@ export class LinkedDataProvider {
      *
      * @param linkName The link that you want to map the choices for.
      * @param items The items that should be mapped.
+     * @param forceReload
+     * @param includeOriginal Whether or not original.
      */
-    private mapMultipleChoice(items: any[], context: any, forceReload?: boolean): Promise<SimplifiedLinkedResource[]> {
+    private mapMultipleChoice(items: any[], context: any, forceReload?: boolean, includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
         return this.createLinkedAgent(context, forceReload).then(agent => items
             .map(item => ({
                 name: getDisplayName(this.field.meta, items, item),
                 description: getDescription(this.field.meta, item),
                 order: getOrder(this.field.meta, item),
-                value: getIdentityValue(agent.schema, this.field.meta, item)
+                value: getIdentityValue(agent.schema, this.field.meta, item),
+                parent: getParentValue(this.field.meta, item),
+                original: includeOriginal ? item : null
             } as SimplifiedLinkedResource))
             .sort((a: SimplifiedLinkedResource, b: SimplifiedLinkedResource) => {
                 if (a.order === b.order) {
@@ -225,6 +229,13 @@ function getIdentityValue(schema: SchemaNavigator, field: ExtendedFieldDescripto
     return item[field.field.data.value];
 }
 
+function getParentValue(field: ExtendedFieldDescriptor, item: any): IdentityValue {
+    if (field.field.data == null || field.field.data.parent == null) {
+        return item['parent'];
+    }
+    return item[field.field.data.parent];
+}
+
 function startsWith(str, target) {
     return String(str).slice(0, target.length) == String(target);
 }
@@ -257,4 +268,14 @@ export interface SimplifiedLinkedResource {
      * The actual identity value(s) that link the two objects.
      */
     value: IdentityValue;
+
+    /**
+     * The identity value of the parent item, if set in the schema.
+     */
+    parent?: IdentityValue;
+
+    /**
+     * Original unmapped item.
+     */
+    original?: any;
 }

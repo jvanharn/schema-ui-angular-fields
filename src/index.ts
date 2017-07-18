@@ -1,3 +1,4 @@
+export * from './models/base-form-field';
 export * from './models/signals';
 export * from './models/form-field';
 export * from './models/form-field-context';
