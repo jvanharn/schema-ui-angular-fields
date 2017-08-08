@@ -48,10 +48,10 @@ export class FormFieldService {
             return this.components[name];
         }
         try {
-            var fields = [].concat.apply([], this.injector.get(LOAD_FORM_FIELDS));
+            var fields: any[] = [].concat.apply([], this.injector.get(LOAD_FORM_FIELDS));
         }
         catch(err) {
-            console.error('Unable to fetch the available fields.');
+            console.error('Unable to fetch the available fields.', err);
             return null;
         }
         return fields.find(x => removeRight(x['name'], 'Component') === name);

@@ -20,12 +20,10 @@ export class SchemaFieldsModule {
      * @param entryFields A list of dynamically inserted fields (components implementing FormField).
      * @returns ModuleWithProviders
      */
-    static forRoot(entryFields?: Array<Type<any> | any[]>): ModuleWithProviders {
+    public static forRoot(entryFields?: Array<Type<any>>): ModuleWithProviders {
         return {
             ngModule: SchemaFieldsModule,
-            providers: [
-                { provide: LOAD_FORM_FIELDS, useValue: entryFields || [], multi: true }
-            ]
+            providers: FormFieldService.provideFormFields(entryFields as any[] || []),
         };
     }
 }

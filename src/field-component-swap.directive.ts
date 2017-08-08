@@ -96,7 +96,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
         }
 
         // Refresh/get the component to initialize based on the meta-data (if we didnt already).
-        if (!this.component || this.context.meta.field.type !== context.meta.field.type) {
+        if (!this.component || (!!this.context && this.context.meta.field.type !== context.meta.field.type)) {
             this.component = this.fields.getFieldComponentByName<T>(context.meta.field.type);
             if (!this.component) {
                 this.error(`Component could not be found for field.type "${context.meta.field.type}".`);

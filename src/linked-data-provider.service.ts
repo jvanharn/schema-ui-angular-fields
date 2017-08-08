@@ -158,7 +158,7 @@ export class LinkedDataProvider {
             } as SimplifiedLinkedResource))
             .sort((a: SimplifiedLinkedResource, b: SimplifiedLinkedResource) => {
                 if (a.order === b.order) {
-                    return a.name.localeCompare(b.name);
+                    return String(a.name).localeCompare(String(b.name));
                 }
                 if (a.order > b.order) {
                     return 1;
@@ -174,7 +174,7 @@ export class LinkedDataProvider {
         if (context != null && Object.keys(context).length) {
             return Promise.resolve(context);
         }
-        return this.context.getData();
+        return Promise.resolve(this.context.getData());
     }
 }
 
@@ -182,7 +182,7 @@ function getDisplayName(field: ExtendedFieldDescriptor, items: any[], item: any)
     if (field.field.data == null || field.field.data.label == null) {
         return item['name'] || item['displayName'] || item['internalName'] || item['entity'];
     }
-    if (field.field.data.parent) {
+    if (field.field.data.parent && field.field.data.mergeLabelWithParents === true) {
         return getDisplayNameForParent(field, items, item, item[field.field.data.label]);
     }
     return item[field.field.data.label];
@@ -236,7 +236,7 @@ function getParentValue(field: ExtendedFieldDescriptor, item: any): IdentityValu
     return item[field.field.data.parent];
 }
 
-function startsWith(str, target) {
+function startsWith(str: string, target: string) {
     return String(str).slice(0, target.length) == String(target);
 }
 

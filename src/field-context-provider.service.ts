@@ -94,7 +94,7 @@ export class FieldContextProvider {
             set => _.some(
                 set.fields,
                 // If the field hasnt initialized yet; it is not dirty, except when we are in create mode.
-                field => this.isFieldAvailable(field) && !!field.instance.dirty
+                field => this.isFieldAvailable(field) && field.instance != null && !!field.instance.dirty
             )
         );
     }
@@ -252,7 +252,8 @@ export class FieldContextProvider {
         if (field && field.instance) {
             return field.instance.value;
         }
-        return null;
+
+        return this.getFieldInitialValue(field.ctx.meta);
     }
 
     /**
@@ -261,11 +262,7 @@ export class FieldContextProvider {
      * @param fieldId Field identity.
      */
     public getFieldValueById(fieldId: string): any {
-        var field = this.find(x => x.ctx.id === fieldId);
-        if (field && field.instance) {
-            return field.instance.value;
-        }
-        return null;
+        return this.getFieldValue(x => x.ctx.id === fieldId);
     }
 
     /**
@@ -278,7 +275,18 @@ export class FieldContextProvider {
         if (field && field.instance) {
             return field.instance.value;
         }
-        return null;
+
+        if (_.isEmpty(this.initialValues)) {
+            return void 0;
+        }
+
+        try {
+            return this.schema.getPropertyValue(fieldName, this.initialValues);
+        }
+        catch (e) {
+            debug(`getFieldValueByName: something went wrong fetching the initial value for the field "${fieldName}".`, e);
+            return null;
+        }
     }
 //endregion
 
@@ -320,6 +328,10 @@ export class FieldContextProvider {
      * Validates the form field asynchronously, and sets the viewmodel's validation result object.
      */
     public validateField(field: FormFieldViewModel<FormField<any>>): Promise<FormFieldValidationResult> {
+        if (field.instance == null) {
+            return Promise.resolve(field.validation = FieldContextProvider.createPristineFieldvalidationResult());
+        }
+
         try {
             var requiredState = this._validateRequiredField(field);
             if (requiredState != null) {
@@ -412,7 +424,7 @@ export class FieldContextProvider {
     public validate(): Promise<FormFieldValidationResult[]> {
         return Promise.all(
             _.flatMap(this.sets, set =>
-                _.map(set.fields, field => this.validateField(field))));
+                _.map(set.fields, field => this.isFieldAvailable(field) ? this.validateField(field) : FieldContextProvider.createPristineFieldvalidationResult())));
     }
 
     /**
@@ -528,7 +540,7 @@ export class FieldContextProvider {
             };
         }
 
-        var result = { label: [], description: [] },
+        var result: { label: string[], description: string[] } = { label: [], description: [] },
             entity = this.schema.entity;
 
         if (field.name == null) {
@@ -616,7 +628,7 @@ export class FieldContextProvider {
     public getData(changedOnly: boolean = true): any {
         // @todo maybe do something with JSON Paths here if this does not always apply.
         // @todo This code now assumes that all variables should always go in the root of the request object.
-        var result = {};
+        var result: any = {};
         this.each(field => {
             if (!!field.instance && (changedOnly === false || !!field.instance.dirty)) {
                 if (!!field.ctx.pointer) {
@@ -647,7 +659,7 @@ export class FieldContextProvider {
      * @return The form's data in the form of an patch object.
      */
     public getPatchOperations(includeTests: boolean = true): JsonPatchOperation[] {
-        var result = [];
+        var result: any = [];
         this.each(field => {
             if (!!field.instance && !!field.instance.dirty) {
                 // Check if the field instance implements PatchableFormField<T>
