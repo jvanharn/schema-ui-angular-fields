@@ -533,11 +533,13 @@ export class FieldContextProvider {
      * Translate the field using one of the available translation strategies.
      */
     private translateField(fieldsetId: string, field: ExtendedFieldDescriptor): { label: string, description: string } {
+        var schemaMessages = {
+            label: this.schema.getFieldTitle(field.name),
+            description: this.schema.getFieldDescription(field.name),
+        };
+
         if (!this.translateMessageOrDefault && !this.messages) {
-            return {
-                label: this.schema.getFieldTitle(field.name),
-                description: this.schema.getFieldDescription(field.name),
-            };
+            return schemaMessages;
         }
 
         var result: { label: string[], description: string[] } = { label: [], description: [] },
@@ -576,8 +578,8 @@ export class FieldContextProvider {
         result.description.push(field.name.toLowerCase() + '_description');
 
         return {
-            label: this.translateToken(result.label),
-            description: this.translateToken(result.description),
+            label: this.translateToken(result.label, schemaMessages.label),
+            description: this.translateToken(result.description, schemaMessages.description),
         };
     }
 
@@ -591,11 +593,12 @@ export class FieldContextProvider {
 
     /**
      * Translate token.
+     *
      * @param tokens
      */
-    private translateToken(tokens: string[]): string{
+    private translateToken(tokens: string[], defaultValue?: string): string{
         if (this.translateMessageOrDefault) {
-            return this.translateMessageOrDefault(tokens);
+            return this.translateMessageOrDefault(tokens, defaultValue);
         }
         else if (this.messages) {
             var messages = this.messages.getMessages();
@@ -622,6 +625,7 @@ export class FieldContextProvider {
 
     /**
      * Get the data object for the form.
+     *
      * @param changedOnly Whether or not to only include the properties that have changed.
      * @return The form's data model (Untested).
      */

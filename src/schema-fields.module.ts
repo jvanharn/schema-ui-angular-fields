@@ -1,6 +1,7 @@
 import { NgModule, ModuleWithProviders, Type } from '@angular/core';
 
 import { FormFieldService, LOAD_FORM_FIELDS } from './form-field.service';
+import { LinkedDataCache } from './linked-data-cache.service';
 import { FieldComponentSwitchDirective } from './field-component-swap.directive';
 
 @NgModule({
@@ -8,7 +9,8 @@ import { FieldComponentSwitchDirective } from './field-component-swap.directive'
         FieldComponentSwitchDirective,
     ],
     providers: [
-        FormFieldService
+        FormFieldService,
+        LinkedDataCache,
     ],
     exports: [
         FieldComponentSwitchDirective,

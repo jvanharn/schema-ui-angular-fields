@@ -4,6 +4,7 @@ import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, SchemaNavigator, Js
 import { FieldContextProvider } from './field-context-provider.service';
 import { FormField } from './models/form-field';
 import { fieldComponentContextToken, FieldComponentContext } from './models/form-field-context';
+import { LinkedDataCache } from "./linked-data-cache.service";
 
 import * as pointer from 'json-pointer';
 import * as debuglib from 'debug';
@@ -17,7 +18,7 @@ var debug = debuglib('schema-ui:linked-data-provider');
 @Injectable()
 export class LinkedDataProvider {
     /**
-     * Cached linked-data.
+     * Cached promise so we dont fetch the info twice.
      */
     private data: Promise<any[]>;
 
@@ -29,7 +30,8 @@ export class LinkedDataProvider {
     public constructor(
         @Inject('ISchemaAgent') private agent: IRelatableSchemaAgent,
         @Inject(fieldComponentContextToken) private field: FieldComponentContext<FormField<any>>,
-        @Inject(FieldContextProvider) private context: FieldContextProvider
+        @Inject(FieldContextProvider) private context: FieldContextProvider,
+        @Inject(LinkedDataCache) private cache: LinkedDataCache
     ) { }
 
     /**
@@ -46,35 +48,49 @@ export class LinkedDataProvider {
             return Promise.reject(new Error('MultiSelectField: Field-data does not contain a link! Without a set hyperlink we cannot load the filter values.'));
         }
 
-        if (forceReload !== true && this.data != null) {
-            return this.data;
+        if (forceReload !== true) {
+            // Check if we already cached it locally.
+            if (this.data != null) {
+                return this.data;
+            }
+
+            // Fetch state from cache.
+            var state = this.cache.fetch(this.agent.schema.schemaId, this.field.meta.field.link as string);
+            if (state !== null) {
+                return Promise.resolve(state);
+            }
         }
 
         if (this.agent.schema.hasLink(this.field.meta.field.link)) {
             this.linkedAgent = null;
-            return this.data = this.chooseAppropriateContext(context).then(ctx => {
-                if (startsWith(this.field.meta.field.link as string, 'list')) {
-                    return this.agent
-                        .list(1, 1000, this.field.meta.field.link as any, ctx)
-                        .then(cursor => cursor.all());
-                }
-                else if (startsWith(this.field.meta.field.link as string, 'read')) {
-                    return this.agent
-                        .read<any>(ctx, this.field.meta.field.link as any)
-                        .then(item => {
-                            try {
-                                return pointer.get(item, this.field.meta.field.data['pointer'] || '/');
-                            }
-                            catch (e) {
-                                debug(`[warn] unable to get the data for pointer "${this.field.meta.field.data['pointer']}"`);
-                            }
-                            return [];
-                        });
-                }
-                else {
-                    throw new Error('I cannot resolve this link, tip: prefix the link name with "read-" or "list-" so we know what to do.');
-                }
-            });
+            return this.data = this.chooseAppropriateContext(context)
+                .then(ctx => {
+                    if (startsWith(this.field.meta.field.link as string, 'list')) {
+                        return this.agent
+                            .list(1, 1000, this.field.meta.field.link as any, ctx)
+                            .then(cursor => cursor.all());
+                    }
+                    else if (startsWith(this.field.meta.field.link as string, 'read')) {
+                        return this.agent
+                            .read<any>(ctx, this.field.meta.field.link as any)
+                            .then(item => {
+                                try {
+                                    return pointer.get(item, this.field.meta.field.data['pointer'] || '/');
+                                }
+                                catch (e) {
+                                    debug(`[warn] unable to get the data for pointer "${this.field.meta.field.data['pointer']}"`);
+                                }
+                                return [];
+                            });
+                    }
+                    else {
+                        throw new Error('I cannot resolve this link, tip: prefix the link name with "read-" or "list-" so we know what to do.');
+                    }
+                })
+                .then(state => {
+                    this.cache.push(this.agent.schema.schemaId, this.field.meta.field.link as string, [], state);
+                    return state;
+                });
         }
         else {
             return Promise.reject(new Error('MultiSelectField: Field link is not a valid hyperlink: it doesnt exist on the current schema.'));
@@ -174,7 +190,7 @@ export class LinkedDataProvider {
         if (context != null && Object.keys(context).length) {
             return Promise.resolve(context);
         }
-        return Promise.resolve(this.context.getData());
+        return Promise.resolve(this.context.getData(false));
     }
 }
 

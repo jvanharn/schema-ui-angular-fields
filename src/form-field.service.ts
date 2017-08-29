@@ -19,9 +19,7 @@ export class FormFieldService {
      */
     public constructor(
         @Inject(Injector) private injector: Injector
-    ) {
-
-    }
+    ) { }
 
     /**
      * Register field.
