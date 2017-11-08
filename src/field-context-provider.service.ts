@@ -288,6 +288,15 @@ export class FieldContextProvider {
             return null;
         }
     }
+
+    /**
+     * Get the value of the field located at the given pointer.
+     *
+     * @param pointer
+     */
+    public getFieldValueByPointer(pointer: string): any {
+        return this.getFieldValue(x => x.ctx.pointer === pointer);
+    }
 //endregion
 
     /**
@@ -596,7 +605,7 @@ export class FieldContextProvider {
      *
      * @param tokens
      */
-    private translateToken(tokens: string[], defaultValue?: string): string{
+    private translateToken(tokens: string[], defaultValue?: string): string {
         if (this.translateMessageOrDefault) {
             return this.translateMessageOrDefault(tokens, defaultValue);
         }
@@ -742,12 +751,13 @@ export class FieldContextProvider {
         agent: EndpointSchemaAgent,
         trans: MessageBundle | translateMessageOrDefaultFunc,
         mode: FormModes = 'edit',
-        initialValues?: any
+        initialValues?: any,
+        parent?: FieldContextProvider
     ): FieldContextProvider {
         if (trans instanceof MessageBundle) {
-            return new FieldContextProvider(agent.schema, agent.validators, mode, initialValues, void 0, void 0, trans as MessageBundle);
+            return new FieldContextProvider(agent.schema, agent.validators, mode, initialValues, parent, void 0, trans as MessageBundle);
         }
-        return new FieldContextProvider(agent.schema, agent.validators, mode, initialValues, void 0, trans as translateMessageOrDefaultFunc);
+        return new FieldContextProvider(agent.schema, agent.validators, mode, initialValues, parent, trans as translateMessageOrDefaultFunc);
     }
 }
 
