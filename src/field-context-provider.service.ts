@@ -11,7 +11,8 @@ import {
     ValidatorCache,
     ISchemaValidator,
     EntityIdentity,
-    ValidationError
+    ValidationError,
+    fixJsonPointerPath
 } from 'json-schema-services';
 
 import { FormField, PatchableFormField } from './models/form-field';
@@ -36,7 +37,7 @@ export class FieldContextProvider {
     /**
      * List of all fieldsets and fields.
      */
-    protected readonly mapped: FormFieldSet[];
+    public readonly mapped: FormFieldSet[];
 
     /**
      * List of all visible fieldsets and fields in the form.
@@ -224,6 +225,29 @@ export class FieldContextProvider {
     }
 //endregion
 
+//region State management
+    /**
+     * Reset every initialized instance to it's initial value.
+     */
+    public reset(): void {
+        this.each(x => !!x.instance && x.instance.reset());
+    }
+
+    /**
+     * Create an clone of this field context provider using the given initialValues.
+     *
+     * @param initialValues The new initial values for the clone.
+     * @param mode The form mode for the clone.
+     *
+     * @return Cloned field context provider.
+     */
+    public clone(initialValues?: any, mode: FormModes = this.mode): FieldContextProvider {
+        var sibbling = new FieldContextProvider(this.schema, this.validators, mode, initialValues, this.parent, this.translateMessageOrDefault, this.messages);
+        sibbling.visible = this.visible;
+        return sibbling;
+    }
+//endregion
+
 //region Field (default) values
     /**
      * Get the initial value for the given field.
@@ -237,7 +261,9 @@ export class FieldContextProvider {
             return pointer.get(this.initialValues, field.pointer);
         }
         catch (e) {
-            debug(`getFieldInitialValue: something went wrong fetching the initial value for fields "${field.name}".`, e);
+            if (field.isRequired) {
+                debug(`getFieldInitialValue: something went wrong fetching the initial value for the required field "${field.id}" on path [${field.pointer}].`, e);
+            }
             return null;
         }
     }
@@ -504,6 +530,31 @@ export class FieldContextProvider {
     }
 
     /**
+     * Extract information from all the fields.
+     *
+     * @param iterator The iterator that will extract the information.
+     * @param visibleOnly Whether or not to only iterate over visible fields.
+     *
+     * @return The extracted information.
+     */
+    public extract<T>(iterator: (item: FormFieldViewModel<FormField<any>>) => T, visibleOnly: boolean = true): T[] {
+        var i = 0, j = 0, numFields = 0,
+            sets = visibleOnly ? this.mapped : this.sets,
+            numSets = this.sets.length,
+            result = [];
+        while (i < numSets) {
+            numFields = sets[i].fields.length;
+            j = 0;
+            while (j < numFields) {
+                result.push(iterator(sets[i].fields[j]));
+                j++;
+            }
+            i++;
+        }
+        return result;
+    }
+
+    /**
      * Checks whether the given field is loaded, and if loaded, whether it's done loading.
      */
     public isFieldAvailable(field: FormFieldViewModel<any>): boolean {
@@ -741,7 +792,34 @@ export class FieldContextProvider {
      * Create an field context provider form pointer resolving to a field in the current schema and this instance's initial values.
      */
     public createChildFromPointer(pointer: string): FieldContextProvider {
-        return this.createChildFromNavigator(new SchemaNavigator(this.schema.original, pointer));
+        var pnt = fixJsonPointerPath(pointer),
+            sub = this.schema.getFieldDescriptorForPointer(pnt);
+
+        // Check property validity
+        if (sub.length === 0) {
+            throw new Error(`Couldn\'t create a child field-context-provider, the pointer "${pointer}" most likely doesn\'t exist.`);
+        }
+        if (sub.length > 1) {
+            // Friendly reminder about the successrate of this code-path
+            debug(`[warn] PRE-ALPHA FUNCTIONALITY; having multiple definitions for a single field is not tested!`);
+        }
+
+        // Check if the field refers to an external schema.
+        if (sub[0].$ref) {
+            if (sub.length > 1) {
+                console.warn(`PRE-ALPHA FUNCTIONALITY! having multiple schema definitions, with one external ref (especially if it is not embedded in the same schema, will most likely fail spectacularly.`);
+            }
+
+            var schema = this.validators.cache.getSchema(sub[0].$ref);
+            if (schema == null) {
+                throw new Error(`Unable to find the schema with id "${sub[0].$ref}" for child-context with pointer "${pointer}".`);
+            }
+
+            return this.createChildFromNavigator(new SchemaNavigator(schema, void 0, x => this.validators.cache.getSchema(x)));
+        }
+
+        // Create the child if it is embedded.
+        return this.createChildFromNavigator(new SchemaNavigator(this.schema.original, pnt, x => this.validators.cache.getSchema(x)));
     }
 
     /**
