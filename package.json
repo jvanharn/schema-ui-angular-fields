@@ -1,6 +1,6 @@
 {
   "name": "schema-ui-angular-fields",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Schema UI - Angular Fields Implementation",
   "main": "src/index.js",
   "module": "src/index.js",

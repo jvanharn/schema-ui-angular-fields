@@ -37,7 +37,7 @@ export class FieldContextProvider {
     /**
      * List of all fieldsets and fields.
      */
-    public readonly mapped: FormFieldSet[];
+    protected readonly mapped: FormFieldSet[];
 
     /**
      * List of all visible fieldsets and fields in the form.
