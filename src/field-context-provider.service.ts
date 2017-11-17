@@ -55,6 +55,7 @@ export class FieldContextProvider {
             return;
         }
         this._visible = val as any;
+
         this.changeFieldVisibility(x => _.isEmpty(this._visible) || _.includes(this._visible, x.ctx.pointer));
     }
     private _visible: string[] = [];
@@ -517,7 +518,7 @@ export class FieldContextProvider {
     public each(iterator: (item: FormFieldViewModel<FormField<any>>) => void, visibleOnly: boolean = true): void {
         var i = 0, j = 0, numFields = 0,
             sets = visibleOnly ? this.mapped : this.sets,
-            numSets = this.sets.length;
+            numSets = sets.length;
         while (i < numSets) {
             numFields = sets[i].fields.length;
             j = 0;
@@ -540,7 +541,7 @@ export class FieldContextProvider {
     public extract<T>(iterator: (item: FormFieldViewModel<FormField<any>>) => T, visibleOnly: boolean = true): T[] {
         var i = 0, j = 0, numFields = 0,
             sets = visibleOnly ? this.mapped : this.sets,
-            numSets = this.sets.length,
+            numSets = sets.length,
             result = [];
         while (i < numSets) {
             numFields = sets[i].fields.length;
@@ -549,6 +550,25 @@ export class FieldContextProvider {
                 result.push(iterator(sets[i].fields[j]));
                 j++;
             }
+            i++;
+        }
+        return result;
+    }
+
+    /**
+     * Extract information from all the fields.
+     *
+     * @param iterator The iterator that will extract the information.
+     * @param visibleOnly Whether or not to only iterate over visible fields.
+     *
+     * @return The extracted information.
+     */
+    public extractSet<T>(iterator: (item: FormFieldSet) => T, visibleOnly: boolean = true): T[] {
+        var sets = visibleOnly ? this.mapped : this.sets,
+            i = 0, numSets = sets.length,
+            result = [];
+        while (i < numSets) {
+            result.push(iterator(sets[i]));
             i++;
         }
         return result;
@@ -769,11 +789,20 @@ export class FieldContextProvider {
 
     /**
      * Create an field context provider form an schema and this instance's initial values.
+     *
+     * @param schema Schema navigator to create the child for.
+     * @param pointer The json-pointer pointing to the field that the schema is created for.
      */
-    public createChildFromNavigator(schema: SchemaNavigator): FieldContextProvider {
+    protected createChildFromNavigator(schema: SchemaNavigator, pointer: string): FieldContextProvider {
         var ctx = new FieldContextProvider(schema, this.validators, this.mode, this.initialValues, this, this.translateMessageOrDefault, this.messages);
         if (!_.isEmpty(this.visible)) {
-            ctx.visible = this.visible;
+            var applicable = this.visible.filter(x => x.startsWith(pointer));
+            if (schema.propertyPrefix === pointer) {
+                ctx.visible = applicable;
+            }
+            else {
+                ctx.visible = applicable.map(x => x.substr(pointer.length));
+            }
         }
         return ctx;
     }
@@ -781,15 +810,17 @@ export class FieldContextProvider {
     /**
      * Create an field context provider form an agent and this instance's initial values.
      */
-    public createChildFromAgent(agent: IRelatableSchemaAgent): FieldContextProvider {
+    public createChildFromAgent(agent: IRelatableSchemaAgent, pointer: string): FieldContextProvider {
         if (agent.parent.schema !== this.schema) {
             throw new Error('Given agent is not a child of the current one.');
         }
-        return this.createChildFromNavigator(agent.schema);
+        return this.createChildFromNavigator(agent.schema, pointer);
     }
 
     /**
      * Create an field context provider form pointer resolving to a field in the current schema and this instance's initial values.
+     *
+     * @param pointer The JSON-Pointer pointing to the field to create an child context for.
      */
     public createChildFromPointer(pointer: string): FieldContextProvider {
         var pnt = fixJsonPointerPath(pointer),
@@ -815,11 +846,11 @@ export class FieldContextProvider {
                 throw new Error(`Unable to find the schema with id "${sub[0].$ref}" for child-context with pointer "${pointer}".`);
             }
 
-            return this.createChildFromNavigator(new SchemaNavigator(schema, void 0, x => this.validators.cache.getSchema(x)));
+            return this.createChildFromNavigator(new SchemaNavigator(schema, void 0, x => this.validators.cache.getSchema(x)), pnt);
         }
 
         // Create the child if it is embedded.
-        return this.createChildFromNavigator(new SchemaNavigator(this.schema.original, pnt, x => this.validators.cache.getSchema(x)));
+        return this.createChildFromNavigator(new SchemaNavigator(this.schema.original, pnt, x => this.validators.cache.getSchema(x)), pnt);
     }
 
     /**
