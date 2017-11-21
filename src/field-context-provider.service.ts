@@ -494,8 +494,12 @@ export class FieldContextProvider {
 //region Field and fieldset iteration helpers
     /**
      * Find a field by it's property name.
+     *
+     * @param matcher A predicate to find the field with to retrieve.
+     *
+     * @return The form field view model.
      */
-    public find(matcher: (field: FormFieldViewModel<FormField<any>>) => boolean): FormFieldViewModel<FormField<any>> {
+    public find(matcher: (field: FormFieldViewModel<FormField<any>>) => boolean): FormFieldViewModel<FormField<any>> | null {
         var i = 0, j = 0, numFields = 0;
         var numSets = this.sets.length;
         while (i < numSets) {
@@ -510,6 +514,17 @@ export class FieldContextProvider {
         }
 
         return null;
+    }
+
+    /**
+     * Find a field's view model by it's JSON-pointer.
+     *
+     * @param pointer The JSON-Pointer of the field to find.
+     *
+     * @return The view model of the requested field or null when not found.
+     */
+    public findByPointer(pointer: string): FormFieldViewModel<FormField<any>> | null {
+        return this.find(field => field.ctx.pointer === pointer);
     }
 
     /**
