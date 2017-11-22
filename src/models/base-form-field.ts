@@ -1,6 +1,5 @@
 import { Subject } from 'rxjs';
 
-import * as _ from 'lodash';
 import * as debuglib from 'debug';
 var debug = debuglib('schema-ui:base-form-field');
 
@@ -97,7 +96,7 @@ export abstract class BaseFormField<T> implements FormField<T>
     protected initializeFieldValue(): void {
         // Set the initial field value. This value is used to check dirty state etc.
         if (this.context.initialValue !== void 0) {
-            if (_.isArray(this.context.initialValue))
+            if (Array.isArray(this.context.initialValue))
                 this.initialValue = (<any> this.context.initialValue).slice();
             else
                 this.initialValue = this.context.initialValue;
@@ -105,14 +104,14 @@ export abstract class BaseFormField<T> implements FormField<T>
 
         // Set the value itself correctly. Will differ from the initial value in, for example, copy mode.
         if(this.context.value !== void 0) {
-            if (_.isArray(this.context.value))
+            if (Array.isArray(this.context.value))
                 this.value = (<any> this.context.value).slice();
             else
                 this.value = this.context.value;
             this._dirty = this.context.initialValue !== this.context.value;
         }
         else if (this.context.initialValue !== void 0) {
-            if (_.isArray(this.context.initialValue))
+            if (Array.isArray(this.context.initialValue))
                 this.value = (<any> this.context.initialValue).slice();
             else
                 this.value = this.context.initialValue;
@@ -129,7 +128,7 @@ export abstract class BaseFormField<T> implements FormField<T>
      */
     public reset(): void {
         if (this.initialValue !== void 0) {
-            if (_.isArray(this.initialValue))
+            if (Array.isArray(this.initialValue))
                 this.value = (<any>this.initialValue).slice();
             else
                 this.value = this.initialValue;

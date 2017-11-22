@@ -51,12 +51,12 @@ export class FieldContextProvider {
         return this._visible as any;
     }
     public set visible(val: ReadonlyArray<string>) {
-        if (!_.isArray(val)) {
+        if (!Array.isArray(val)) {
             return;
         }
         this._visible = val as any;
 
-        this.changeFieldVisibility(x => _.isEmpty(this._visible) || _.includes(this._visible, x.ctx.pointer));
+        this.changeFieldVisibility(x => _.isEmpty(this._visible) || this._visible.indexOf(x.ctx.pointer) > -1);
     }
     private _visible: string[] = [];
 
@@ -65,53 +65,37 @@ export class FieldContextProvider {
      * Whether or not any fields are still loading.
      */
     public isLoading(): boolean {
-        return !_.every(
-            this.sets,
-            set => _.every(
-                set.fields,
-                field => this.isFieldAvailable(field)
-            )
-        );
+        return !this.sets.every(
+            set => set.fields.every(
+                field => this.isFieldAvailable(field)));
     }
 
     /**
      * Whether or not all values are valid, is true by default unless you force the validation execution.
      */
     public isValid(): boolean {
-        return _.every(
-            this.sets,
-            set => _.every(
-                set.fields,
-                field => field.validation.valid
-            )
-        );
+        return this.sets.every(
+            set => set.fields.every(
+                field => field.validation.valid));
     }
 
     /**
      * Whether or not any values have been changed.
      */
     public isDirty(): boolean {
-        return _.some(
-            this.sets,
-            set => _.some(
-                set.fields,
+        return this.sets.some(
+            set => set.fields.some(
                 // If the field hasnt initialized yet; it is not dirty, except when we are in create mode.
-                field => this.isFieldAvailable(field) && field.instance != null && !!field.instance.dirty
-            )
-        );
+                field => this.isFieldAvailable(field) && field.instance != null && !!field.instance.dirty));
     }
 
     /**
      * This value is true when no single value has been touched, and so not validators have been fired yet.
      */
     public isPristine(): boolean {
-        return _.every(
-            this.sets,
-            set => _.every(
-                set.fields,
-                field => field.validation.level === ValidationLevel.Pristine
-            )
-        );
+        return this.sets.every(
+            set => set.fields.every(
+                field => field.validation.level === ValidationLevel.Pristine));
     }
 
     /**
@@ -199,11 +183,8 @@ export class FieldContextProvider {
         initialValueSelector: initialFieldValueFetcher
     ): FormFieldSet {
         // Map fields.
-        var mapped = _(fields)
-            .map(definition =>
-                this._mapFieldFromSchema(fieldsetId, definition, initialValueSelector(definition)))
-            .value();
-        debug('mapped fields from the schema:', _.map(mapped, x => x.ctx.name));
+        var mapped = fields.map(definition => this._mapFieldFromSchema(fieldsetId, definition, initialValueSelector(definition)));
+        debug('mapped fields from the schema:', mapped.map(x => x.ctx.name));
 
         return <FormFieldSet> {
             id: _.isEmpty(fieldsetId) ? defaultFieldsetId : fieldsetId,
@@ -616,6 +597,15 @@ export class FieldContextProvider {
     }
 //endregion
 
+//region Field information helpers
+    /**
+     * Whether or not the field with the given pointer will be rendered/visible to the user.
+     */
+    public isVisibleField(pointer: string): boolean {
+        return (this.visible.indexOf(fixJsonPointerPath(pointer)) > -1);
+    }
+//endregion
+
 //region Field(set) translation
     /**
      * Translate the title of a fieldset.
@@ -927,6 +917,10 @@ export interface FormFieldViewModel<T extends FormField<any>> {
      * Instance of the field.
      *
      * Set once the field component is initialized.
+     *
+     * undefined = busy initializing by directive
+     * null = Field was not avialable, cant be initialized.
+     * FormField<any> = Field is initialized, and can be considered loaded when "loading" is set to a falsy value.
      */
     instance?: T;
 

@@ -1,10 +1,12 @@
+import { SchemaHyperlinkDescriptor } from 'json-schema-services/esm';
 import { Injectable, Inject } from '@angular/core';
+import { Observable, Subject } from 'rxjs';
 import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, SchemaNavigator, JsonSchema, ExtendedFieldDescriptor } from 'json-schema-services';
 
 import { FieldContextProvider } from './field-context-provider.service';
 import { FormField } from './models/form-field';
 import { fieldComponentContextToken, FieldComponentContext } from './models/form-field-context';
-import { LinkedDataCache } from "./linked-data-cache.service";
+import { LinkedDataCache } from './linked-data-cache.service';
 
 import * as pointer from 'json-pointer';
 import * as debuglib from 'debug';
@@ -39,7 +41,7 @@ export class LinkedDataProvider {
      *
      * @param context The context of the form (e.g. other form values)
      */
-    public resolveLinkedData(context?: any, forceReload?: boolean): Promise<any[]> {
+    protected resolveLinkedData(context: any, forceReload?: boolean): Promise<any[]> {
         if (!this.field.meta.field) {
             return Promise.reject(new Error('MultiSelectField: Field-data not set.'));
         }
@@ -63,7 +65,7 @@ export class LinkedDataProvider {
 
         if (this.agent.schema.hasLink(this.field.meta.field.link)) {
             this.linkedAgent = null;
-            return this.data = this.chooseAppropriateContext(context)
+            return this.data = Promise.resolve(context)
                 .then(ctx => {
                     if (startsWith(this.field.meta.field.link as string, 'list')) {
                         return this.agent
@@ -102,34 +104,51 @@ export class LinkedDataProvider {
      *
      * @param context The context of the form (e.g. other form values)
      */
-    public resolveSimplifiedLinkedData(context?: any, forceReload?: boolean, includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
-        return this.chooseAppropriateContext(context).then(ctx =>
-            this.resolveLinkedData(ctx, forceReload).then(items =>
-                this.mapLinkedData(items, ctx, forceReload, includeOriginal)));
+    public resolveLinkedResource(includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
+        var link = this.agent.schema.getLink(this.field.meta.field.link),
+            context = this.getLinkContext(link),
+            isDynamic = this.isDynamicHyperSchemaLink(link);
+        return this.resolveLinkedData(context).then(items =>
+            this.mapMultipleChoice(items, context, isDynamic, includeOriginal));
     }
 
     /**
-     * Convert already received values to the simplified format.
+     * Resolve the simplified resource, if any of the (in the url referenced) variables is changed, the resource will be reloaded based on the new value.
      *
-     * @param items The data to convert/map.
-     * @param context The context of the form (e.g. other form values)
+     * If the link does not contain any variables that can change in the current form, the observable is immediately completed.
+     * You cannot change the context, because if you would, the stream would not change anyway, so you can use the promisable version for that.
+     *
+     * @param includeOriginal Whether or not to include the original item in the resulting simplified resource. Defaults to: false.
+     *
+     * @return An observable that emits a new array of simplified resources every time an dependency value/field is changed.
      */
-    public mapLinkedData(items: any[], context?: any, forceReload?: boolean, includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
-        return this.chooseAppropriateContext(context).then(ctx =>
-            this.mapMultipleChoice(items, ctx, forceReload, includeOriginal));
+    public streamLinkedResource(includeOriginal?: boolean): Observable<SimplifiedLinkedResource[]> {
+        var link = this.agent.schema.getLink(this.field.meta.field.link),
+            isDynamic = this.isDynamicHyperSchemaLink(link);
+
+        if (!isDynamic) {
+            return Observable.fromPromise(this.resolveLinkedResource(includeOriginal));
+        }
+
+        return this.streamLinkContext(link).map(context =>
+            this.resolveLinkedData(context).then(items =>
+                this.mapMultipleChoice(items, context, isDynamic, includeOriginal)) as any) as any;
     }
 
     /**
      * Convert the given list of simplified values to a list of the actual linked objects.
      *
      * @param items The simplified linked resource items.
+     *
+     * @return The non-simplified data linked using the described identity values.
      */
     public getLinkedDataFromSimplifiedLinkedData(items: SimplifiedLinkedResource[]): Promise<any | IdentityValue[]> {
         if (typeof this.field.meta.items === 'object') {
             if ((this.field.meta.items as JsonSchema).type === 'object') {
-                return Promise.all([this.resolveLinkedData(), this.createLinkedAgent()])
-                    .then(([data, agent]) =>
-                        items.map(item => data.find(x => item.value === x[agent.schema.identityProperty])));
+                return Promise.all([
+                    this.resolveLinkedData(this.getLinkContext(this.agent.schema.getLink(this.field.meta.field.link))),
+                    this.createLinkedAgent()
+                ]).then(([data, agent]) => items.map(item => data.find(x => item.value === x[agent.schema.identityProperty])));
             }
             else {
                 return Promise.resolve(items.map(x => x.value));
@@ -149,9 +168,7 @@ export class LinkedDataProvider {
         if (forceReload !== true && this.linkedAgent != null) {
             return this.linkedAgent;
         }
-        return this.linkedAgent =
-            this.chooseAppropriateContext(context).then(ctx =>
-                this.agent.createChildByLink(this.field.meta.field.link as string, ctx));
+        return this.linkedAgent = this.agent.createChildByLink(this.field.meta.field.link as string, context);
     }
 
     /**
@@ -162,7 +179,7 @@ export class LinkedDataProvider {
      * @param forceReload
      * @param includeOriginal Whether or not original.
      */
-    private mapMultipleChoice(items: any[], context: any, forceReload?: boolean, includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
+    protected mapMultipleChoice(items: any[], context: any, forceReload?: boolean, includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
         return this.createLinkedAgent(context, forceReload).then(agent => items
             .map(item => ({
                 name: getDisplayName(this.field.meta, items, item),
@@ -186,11 +203,50 @@ export class LinkedDataProvider {
     /**
      * Chooses between the ambient context and the one given, and returns the correct one (eventually).
      */
-    private chooseAppropriateContext(context?: any): Promise<any> {
-        if (context != null && Object.keys(context).length) {
-            return Promise.resolve(context);
+    protected getLinkContext(link: SchemaHyperlinkDescriptor): any {
+        var pointers = this.agent.schema.getLinkUriTemplatePointers(link),
+            context: any = { };
+        for (var key in pointers) {
+            if (pointers.hasOwnProperty(key)) {
+                context[key] = this.context.getFieldValueByPointer(pointers[key]);
+            }
         }
-        return Promise.resolve(this.context.getData(false));
+        return context;
+    }
+
+    /**
+     * On every change of an
+     */
+    protected streamLinkContext(link: SchemaHyperlinkDescriptor): Observable<any> {
+        var pointers = this.agent.schema.getLinkUriTemplatePointers(link),
+            observables: Observable<any>[] = [];
+        for (var key in pointers) {
+            if (pointers.hasOwnProperty(key) && this.context.visible.indexOf(String(pointers[key])) > -1) {
+                var field = this.context.findByPointer(pointers[key]);
+                if (field != null && field.instance != null) {
+                    observables.push(field.instance.changed);
+                }
+            }
+        }
+
+        return Observable.concat(observables).debounceTime(500).map(x => this.getLinkContext(link));
+    }
+
+    /**
+     * Check whether the schema hyperlink contains variables that can dynamically change, depending on fields visible in the form.
+     *
+     * This methiod is used to determine if the result of the fetching of the target list can change based upon
+     *
+     * @param link The link to check.
+     */
+    private isDynamicHyperSchemaLink(link: SchemaHyperlinkDescriptor): boolean {
+        var pointers = this.agent.schema.getLinkUriTemplatePointers(link);
+        for (var key in pointers) {
+            if (pointers.hasOwnProperty(key) && this.context.visible.indexOf(String(pointers[key])) > -1) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

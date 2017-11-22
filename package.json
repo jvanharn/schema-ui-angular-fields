@@ -1,6 +1,6 @@
 {
   "name": "schema-ui-angular-fields",
-  "version": "0.3.1",
+  "version": "0.5.0",
   "description": "Schema UI - Angular Fields Implementation",
   "main": "src/index.js",
   "module": "src/index.js",
@@ -15,8 +15,9 @@
   "author": "J. van Harn <jeffrey.wizkid@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "json-schema-services": "^0.6.1",
-    "lodash": "^4.17.4"
+    "json-schema-services": "^0.6.5",
+    "lodash": "^4.17.4",
+    "debug": "3.1.0"
   },
   "devDependencies": {
     "@angular/compiler": "^4.3.1",
