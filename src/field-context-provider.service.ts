@@ -216,6 +216,15 @@ export class FieldContextProvider {
     }
 
     /**
+     * Remove the instances for all fields in the current context.
+     *
+     * This instance can be reused after this operation.
+     */
+    public destroy(): void {
+        this.each(field => field.instance = void 0);
+    }
+
+    /**
      * Create an clone of this field context provider using the given initialValues.
      *
      * @param initialValues The new initial values for the clone.
@@ -239,13 +248,26 @@ export class FieldContextProvider {
             return void 0;
         }
 
+        var result = this.getPointerInitialValue(field.pointer);
+        if (result == null && field.isRequired) {
+            debug(`getFieldInitialValue: something went wrong fetching the initial value for the required field "${field.id}" on path [${field.pointer}].`);
+        }
+        return result;
+    }
+
+    /**
+     * Get the initial value for the given JSON-Pointer.
+     */
+    public getPointerInitialValue(pnt: string): any {
+        if (_.isEmpty(this.initialValues)) {
+            return void 0;
+        }
+
         try {
-            return pointer.get(this.initialValues, field.pointer);
+            return pointer.get(this.initialValues, pnt);
         }
         catch (e) {
-            if (field.isRequired) {
-                debug(`getFieldInitialValue: something went wrong fetching the initial value for the required field "${field.id}" on path [${field.pointer}].`, e);
-            }
+            debug(`getPointerInitialValue: something went wrong trying to fetch the initialValue for the pointer "${pnt}".`, e);
             return null;
         }
     }
@@ -257,7 +279,11 @@ export class FieldContextProvider {
      */
     public getFieldValue(matcher: (field: FormFieldViewModel<FormField<any>>) => boolean): any {
         var field = this.find(matcher);
-        if (field && field.instance) {
+        if (field == null) {
+            return void 0;
+        }
+
+        if (field.instance) {
             return field.instance.value;
         }
 
@@ -302,8 +328,17 @@ export class FieldContextProvider {
      *
      * @param pointer
      */
-    public getFieldValueByPointer(pointer: string): any {
-        return this.getFieldValue(x => x.ctx.pointer === pointer);
+    public getFieldValueByPointer(pointer: string): any | void {
+        var field = this.find(x => x.ctx.pointer === pointer);
+        if (field == null) {
+            return this.getPointerInitialValue(pointer);
+        }
+
+        if (field.instance) {
+            return field.instance.value;
+        }
+
+        return this.getFieldInitialValue(field.ctx.meta);
     }
 //endregion
 
@@ -361,7 +396,7 @@ export class FieldContextProvider {
             }
 
             return this.validator
-                .then(x => x.validateProperty(field.ctx.name, field.instance.value))
+                .then(x => x.validatePointer(field.ctx.pointer, field.instance.value))
                 .then(valid => {
                     if (!valid.valid) {
                         return field.validation = {
@@ -577,7 +612,7 @@ export class FieldContextProvider {
         // undefined = busy initializing by directive
         // null = Field was not avialable, cant be initialized.
         // FormField<any> = Field is initialized, and can be considered loaded when "loading" is set to a falsy value.
-        return field.instance === null || (field.instance !== null && field.instance !== void 0 && !field.instance.loading);
+        return field.instance === null || (field.instance !== null && field.instance !== void 0 && field.instance.loading !== true);
     }
 
     /**
@@ -799,7 +834,34 @@ export class FieldContextProvider {
      * @param pointer The json-pointer pointing to the field that the schema is created for.
      */
     protected createChildFromNavigator(schema: SchemaNavigator, pointer: string): FieldContextProvider {
-        var ctx = new FieldContextProvider(schema, this.validators, this.mode, this.initialValues, this, this.translateMessageOrDefault, this.messages);
+        // Get all relevant information for the given pointer field or it's parent, and base the mode on it.
+        var field: FormFieldViewModel<FormField<any>> = this.findByPointer(pointer),
+            isMultiDef = false,
+            selector: string;
+        if (field == null) {
+            var spliced = pointer.split('/');
+            selector = spliced.pop();
+            field = this.findByPointer(spliced.join('/'));
+            isMultiDef = true;
+
+            if (field == null) {
+                throw new Error(`The given field "${pointer}" does not exist on this form! Cannot create a child form context for it.`);
+            }
+        }
+
+        // Determine the mode to create it in
+        var mode = this.mode;
+        if (field.ctx.readonly) { // The field is readonly, and therefore all it's children will be too.
+            mode = 'view';
+        }
+        else if (isMultiDef && _.some(!!field.instance ? field.instance.value : field.ctx.initialValue, (v, k) => String(k) === selector)) { // The key doesn't yet exist, and is therefore new.
+            mode = 'create';
+        }
+
+        // Create the child context
+        var ctx = new FieldContextProvider(schema, this.validators, mode, this.initialValues, this, this.translateMessageOrDefault, this.messages);
+
+        // Copy the visible properties that are relevant.
         if (!_.isEmpty(this.visible)) {
             var applicable = this.visible.filter(x => x.startsWith(pointer));
             if (schema.propertyPrefix === pointer) {
@@ -809,6 +871,7 @@ export class FieldContextProvider {
                 ctx.visible = applicable.map(x => x.substr(pointer.length));
             }
         }
+
         return ctx;
     }
 

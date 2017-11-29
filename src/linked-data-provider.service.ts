@@ -1,7 +1,6 @@
-import { SchemaHyperlinkDescriptor } from 'json-schema-services/esm';
 import { Injectable, Inject } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
-import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, SchemaNavigator, JsonSchema, ExtendedFieldDescriptor } from 'json-schema-services';
+import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, SchemaNavigator, JsonSchema, ExtendedFieldDescriptor, SchemaHyperlinkDescriptor } from 'json-schema-services';
 
 import { FieldContextProvider } from './field-context-provider.service';
 import { FormField } from './models/form-field';
@@ -30,7 +29,7 @@ export class LinkedDataProvider {
     private linkedAgent: Promise<ISchemaAgent>;
 
     public constructor(
-        @Inject('ISchemaAgent') private agent: IRelatableSchemaAgent,
+        @Inject('ISchemaAgent') private agent: IRelatableSchemaAgent, //@todo Make this optional, and require an ISchemaClient implementation with @schema-ui/core@1.0.0+
         @Inject(fieldComponentContextToken) private field: FieldComponentContext<FormField<any>>,
         @Inject(FieldContextProvider) private context: FieldContextProvider,
         @Inject(LinkedDataCache) private cache: LinkedDataCache
@@ -215,7 +214,7 @@ export class LinkedDataProvider {
     }
 
     /**
-     * On every change of an
+     * On every change of a field that is mentioned in the uriTemplate a new context will be emitted with the changed uri template values.
      */
     protected streamLinkContext(link: SchemaHyperlinkDescriptor): Observable<any> {
         var pointers = this.agent.schema.getLinkUriTemplatePointers(link),
@@ -229,7 +228,7 @@ export class LinkedDataProvider {
             }
         }
 
-        return Observable.concat(observables).debounceTime(500).map(x => this.getLinkContext(link));
+        return Observable.merge(observables).debounceTime(500).map(x => this.getLinkContext(link));
     }
 
     /**
