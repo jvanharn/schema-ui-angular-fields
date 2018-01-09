@@ -9,7 +9,12 @@ import { LinkedDataCache } from './linked-data-cache.service';
 
 import * as pointer from 'json-pointer';
 import * as debuglib from 'debug';
-var debug = debuglib('schema-ui:linked-data-provider');
+const debug = debuglib('schema-ui:linked-data-provider');
+
+/**
+ * The minimum time between context emitting (and thus reloading of resources).
+ */
+const contextStreamValueDebounceTime = 350;
 
 /**
  * Class that helps with resolving linked field data.
@@ -28,12 +33,24 @@ export class LinkedDataProvider {
      */
     private linkedAgent: Promise<ISchemaAgent>;
 
+    /**
+     * Whether or not we are currently loading.
+     */
+    private loading: boolean = false;
+
     public constructor(
         @Inject('ISchemaAgent') private agent: IRelatableSchemaAgent, //@todo Make this optional, and require an ISchemaClient implementation with @schema-ui/core@1.0.0+
         @Inject(fieldComponentContextToken) private field: FieldComponentContext<FormField<any>>,
         @Inject(FieldContextProvider) private context: FieldContextProvider,
         @Inject(LinkedDataCache) private cache: LinkedDataCache
     ) { }
+
+    /**
+     * Whether or not we are currently loading a resource.
+     */
+    public isLoading(): boolean {
+        return this.loading;
+    }
 
     /**
      * Get an linked resource as simplified data.
@@ -63,6 +80,7 @@ export class LinkedDataProvider {
         }
 
         if (this.agent.schema.hasLink(this.field.meta.field.link)) {
+            this.loading = true;
             this.linkedAgent = null;
             return this.data = Promise.resolve(context)
                 .then(ctx => {
@@ -90,6 +108,7 @@ export class LinkedDataProvider {
                 })
                 .then(state => {
                     this.cache.push(this.agent.schema.schemaId, this.field.meta.field.link as string, [], state);
+                    this.loading = false;
                     return state;
                 });
         }
@@ -104,8 +123,13 @@ export class LinkedDataProvider {
      * @param context The context of the form (e.g. other form values)
      */
     public resolveLinkedResource(includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
-        var link = this.agent.schema.getLink(this.field.meta.field.link),
-            context = this.getLinkContext(link),
+        var link = this.agent.schema.getLink(this.field.meta.field.link);
+        if (link == null) {
+            return Promise.reject(new Error(
+                `The field by absolute json-pointer "${this.agent.schema.schemaId}${this.field.pointer}" defines relation by link ` +
+                `"${this.field.meta.field.link}", but it does not exist on the parent schema!`));
+        }
+        var context = this.getLinkContext(link),
             isDynamic = this.isDynamicHyperSchemaLink(link);
         return this.resolveLinkedData(context).then(items =>
             this.mapMultipleChoice(items, context, isDynamic, includeOriginal));
@@ -129,9 +153,10 @@ export class LinkedDataProvider {
             return Observable.fromPromise(this.resolveLinkedResource(includeOriginal));
         }
 
-        return this.streamLinkContext(link).map(context =>
-            this.resolveLinkedData(context).then(items =>
-                this.mapMultipleChoice(items, context, isDynamic, includeOriginal)) as any) as any;
+        return this.streamLinkContext(link).concatMap(context =>
+            Observable.fromPromise(
+                this.resolveLinkedData(context, true).then(items =>
+                    this.mapMultipleChoice(items, context, isDynamic, includeOriginal))));
     }
 
     /**
@@ -218,17 +243,22 @@ export class LinkedDataProvider {
      */
     protected streamLinkContext(link: SchemaHyperlinkDescriptor): Observable<any> {
         var pointers = this.agent.schema.getLinkUriTemplatePointers(link),
-            observables: Observable<any>[] = [];
+            observables: Observable<any>[] = [ ];
         for (var key in pointers) {
             if (pointers.hasOwnProperty(key) && this.context.visible.indexOf(String(pointers[key])) > -1) {
                 var field = this.context.findByPointer(pointers[key]);
                 if (field != null && field.instance != null) {
-                    observables.push(field.instance.changed);
+                    if (this.context.isCreateMode()) {
+                        observables.push(field.instance.changed);
+                    }
+                    else {
+                        observables.push(Observable.concat(Observable.of(field.ctx.initialValue), field.instance.changed));
+                    }
                 }
             }
         }
 
-        return Observable.merge(observables).debounceTime(500).map(x => this.getLinkContext(link));
+        return Observable.merge(...observables).debounceTime(contextStreamValueDebounceTime).map(x => this.getLinkContext(link));
     }
 
     /**

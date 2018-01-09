@@ -58,7 +58,7 @@ export class FieldContextProvider {
 
         this.changeFieldVisibility(x => _.isEmpty(this._visible) || this._visible.indexOf(x.ctx.pointer) > -1);
     }
-    private _visible: string[] = [];
+    private _visible: string[];
 
 //region Formmode check methods
     /**
@@ -137,6 +137,7 @@ export class FieldContextProvider {
         @Inject(MessageBundle) @Optional() private messages?: MessageBundle,
     ) {
         this.sets = this.mapped = this._mapSchemaToFieldsets(initialValues);
+        this._visible = this.extract(f => f.ctx.pointer);
         this.validator = validators.getValidator(schema);
     }
 
@@ -166,8 +167,8 @@ export class FieldContextProvider {
                 name: field.name,
                 pointer: field.pointer,
                 required: field.isRequired,
-                readonly: this.isViewMode(),
-                initialValue: this.isCreateMode() || _.isEmpty(this.initialValues) ? field.default : initialValue,
+                readonly: this.isViewMode() || this.isFieldParentIdentifier(field),
+                initialValue: this.isCreateMode() || _.isEmpty(this.initialValues) ? this.getFieldDefaultValue(field) : initialValue,
                 value: initialValue,
                 meta: field
             } as FieldComponentContext<any>
@@ -270,6 +271,24 @@ export class FieldContextProvider {
             debug(`getPointerInitialValue: something went wrong trying to fetch the initialValue for the pointer "${pnt}".`, e);
             return null;
         }
+    }
+
+    /**
+     * Get the default value for the given field, intelligently looking it up in the parent form.
+     */
+    public getFieldDefaultValue(field: ExtendedFieldDescriptor): any {
+        if (this.isFieldParentIdentifier(field)) {
+            // The property is an identifier of it's parent in create mode, fill it with the parent value.
+            return this.parent.getFieldValueByName(field.name);
+        }
+        return field.default;
+    }
+
+    /**
+     * Returns whether or not the given field represents the identity of it's parent form. (A parent child relation)
+     */
+    public isFieldParentIdentifier(field: ExtendedFieldDescriptor): boolean {
+        return this.parent && this.isCreateMode() && this.parent.schema.identityProperties.indexOf(field.name) > -1;
     }
 
     /**
@@ -854,7 +873,7 @@ export class FieldContextProvider {
         if (field.ctx.readonly) { // The field is readonly, and therefore all it's children will be too.
             mode = 'view';
         }
-        else if (isMultiDef && _.some(!!field.instance ? field.instance.value : field.ctx.initialValue, (v, k) => String(k) === selector)) { // The key doesn't yet exist, and is therefore new.
+        else if (isMultiDef && !_.some(!!field.instance ? field.instance.value : field.ctx.initialValue, (v, k) => String(k) === selector)) { // The key doesn't yet exist, and is therefore new.
             mode = 'create';
         }
 
