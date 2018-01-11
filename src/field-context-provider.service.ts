@@ -12,12 +12,20 @@ import {
     ISchemaValidator,
     EntityIdentity,
     ValidationError,
-    fixJsonPointerPath
+    fixJsonPointerPath,
 } from 'json-schema-services';
 
 import { FormField, PatchableFormField } from './models/form-field';
 import { FieldComponentContext, FormModes } from './models/form-field-context';
 import { ValidatableFormField, FormFieldValidationResult, ValidationLevel } from './models/form-field-validation';
+import {
+    isRelativePointer,
+    isAbsolutePointer,
+    parseRelativePointer,
+    parseAbsolutePointer,
+    traverseFieldContextsWithRelativePointer,
+    traverseFieldContextsWithAbsolutePointer,
+} from './pointer-tools';
 
 import * as _ from 'lodash';
 import * as pointer from 'json-pointer';
@@ -127,12 +135,21 @@ export class FieldContextProvider {
     }
 //endregion
 
+    /**
+     * @param schema The schema to generate the form context for.
+     * @param validators The validators cache to fetch validators from.
+     * @param mode The mode in which the form will operate.
+     * @param initialValues The initial values of the form fields.
+     * @param parent The parent context if applicable.
+     * @param translateMessageOrDefault Method to translate messages with within the form/
+     * @param messages An optional messagebundle instead of the translation function, to be used to translate labels and descriptions.
+     */
     public constructor(
         @Inject(SchemaNavigator) public schema: SchemaNavigator,
         @Inject(ValidatorCache) public validators: ValidatorCache,
         @Inject('formMode') @Optional() public readonly mode: FormModes = 'edit',
         @Inject('formInitialValues') @Optional() public readonly initialValues?: any,
-        @Inject('parentFieldContext') @Optional() private readonly parent?: FieldContextProvider,
+        @Inject('parentFieldContext') @Optional() public readonly parent?: FieldContextProvider,
         @Inject('translateMessageOrDefault') @Optional() private translateMessageOrDefault?: translateMessageOrDefaultFunc,
         @Inject(MessageBundle) @Optional() private messages?: MessageBundle,
     ) {
@@ -249,7 +266,24 @@ export class FieldContextProvider {
             return void 0;
         }
 
-        var result = this.getPointerInitialValue(field.pointer);
+        var result: any;
+        try {
+            result = pointer.get(this.initialValues, field.pointer);
+        }
+        catch (e) {
+            if (this.isCreateMode()) {
+                var split = field.pointer.split('/');
+                if (split.length >= 2) {
+                    var joined = split.slice(0, split.length - 2).join('/');
+                    if (!pointer.has(this.initialValues, joined)) {
+                        result = this.getFieldDefaultValue(field);
+                    }
+                }
+            }
+
+            debug(`getPointerInitialValue: something went wrong trying to fetch the initialValue for the pointer "${field.pointer}".`, e);
+        }
+
         if (result == null && field.isRequired) {
             debug(`getFieldInitialValue: something went wrong fetching the initial value for the required field "${field.id}" on path [${field.pointer}].`);
         }
@@ -269,7 +303,7 @@ export class FieldContextProvider {
         }
         catch (e) {
             debug(`getPointerInitialValue: something went wrong trying to fetch the initialValue for the pointer "${pnt}".`, e);
-            return null;
+            return void 0;
         }
     }
 
@@ -345,9 +379,17 @@ export class FieldContextProvider {
     /**
      * Get the value of the field located at the given pointer.
      *
-     * @param pointer
+     * @param pointer Absolute (incl. schema-id), relative or plain JSON-pointer.
+     * @param relativeToPointer Relative to what path/field should the pointer be resolved, reuired for relative pointer support.
      */
-    public getFieldValueByPointer(pointer: string): any | void {
+    public getFieldValueByPointer(pointer: string, relativeToPointer: string = '/'): any | void {
+        if (isRelativePointer(pointer)) {
+            return traverseFieldContextsWithRelativePointer(parseRelativePointer(pointer), relativeToPointer, this);
+        }
+        else if (isAbsolutePointer(pointer)) {
+            return traverseFieldContextsWithAbsolutePointer(parseAbsolutePointer(pointer), this);
+        }
+
         var field = this.find(x => x.ctx.pointer === pointer);
         if (field == null) {
             return this.getPointerInitialValue(pointer);
@@ -873,12 +915,30 @@ export class FieldContextProvider {
         if (field.ctx.readonly) { // The field is readonly, and therefore all it's children will be too.
             mode = 'view';
         }
-        else if (isMultiDef && !_.some(!!field.instance ? field.instance.value : field.ctx.initialValue, (v, k) => String(k) === selector)) { // The key doesn't yet exist, and is therefore new.
+        else if (isMultiDef && !_.some(!!field.ctx.initialValue ? field.ctx.initialValue : field.ctx.value, (v, k) => String(k) === selector)) { // The key doesn't yet exist, and is therefore new.
             mode = 'create';
         }
 
+        // Determine if it is a newly rooted schema (outlined), or if it is a sub-schema of this form's schema (inlined)
+        var outlined = this.schema.original.id !== schema.original.id || schema.propertyPrefix === '/';
+
+        // When the entity is outlined, use the field value as initial values, otherwise, the initial values of this form
+        var initialValues = this.initialValues;
+        if (outlined) {
+            if (field.instance != null) {
+                initialValues = field.instance.value;
+            }
+            else {
+                initialValues = field.ctx.initialValue;
+            }
+
+            if (isMultiDef) {
+                initialValues = initialValues[selector];
+            }
+        }
+
         // Create the child context
-        var ctx = new FieldContextProvider(schema, this.validators, mode, this.initialValues, this, this.translateMessageOrDefault, this.messages);
+        var ctx = new FieldContextProvider(schema, this.validators, mode, initialValues, this, this.translateMessageOrDefault, this.messages);
 
         // Copy the visible properties that are relevant.
         if (!_.isEmpty(this.visible)) {
