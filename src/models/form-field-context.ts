@@ -1,4 +1,4 @@
-import { OpaqueToken } from '@angular/core';
+import { InjectionToken } from '@angular/core';
 import { ExtendedFieldDescriptor } from 'json-schema-services';
 
 import { FormField } from './form-field';
@@ -56,4 +56,4 @@ export interface FieldComponentContext<T extends FormField<any>> {
     meta: ExtendedFieldDescriptor;
 }
 
-export const fieldComponentContextToken = new OpaqueToken('FieldComponentContextToken');
+export const fieldComponentContextToken = new InjectionToken('FieldComponentContextToken');

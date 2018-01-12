@@ -1,7 +1,7 @@
-import { Injectable, Inject, Injector, Type, OpaqueToken, ANALYZE_FOR_ENTRY_COMPONENTS } from '@angular/core';
+import { Injectable, Inject, Injector, Type, InjectionToken, ANALYZE_FOR_ENTRY_COMPONENTS } from '@angular/core';
 import { FormField } from './models/form-field';
 
-export const LOAD_FORM_FIELDS = new OpaqueToken('LoadFormFields');
+export const LOAD_FORM_FIELDS = new InjectionToken('LoadFormFields');
 
 /**
  * This service supplies component instances to load for the FormBuilder.

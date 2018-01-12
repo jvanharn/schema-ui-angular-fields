@@ -15,7 +15,7 @@ import {
     ResolvedReflectiveProvider,
     Injector,
     Inject,
-    OpaqueToken,
+    InjectionToken,
 } from '@angular/core';
 
 import { FormField } from './models/form-field';
@@ -29,7 +29,7 @@ var debug = debuglib('schema-ui:field-component-swapper');
 /**
  * Field descriptor with properties specific to the form builder.
  */
-export const formFieldDescriptorToken = new OpaqueToken('ExtendedFieldDescriptorToken');
+export const formFieldDescriptorToken = new InjectionToken('ExtendedFieldDescriptorToken');
 
 /**
  * Outlet for components to be loaded in.

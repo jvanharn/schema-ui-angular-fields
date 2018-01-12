@@ -1,4 +1,4 @@
-import { OpaqueToken } from '@angular/core';
+import { InjectionToken } from '@angular/core';
 /**
  * All signaltypes for handling non-normal form states.
  */
@@ -8,7 +8,7 @@ import { OpaqueToken } from '@angular/core';
  *
  * Allows the form to supply the fields with an event emitter which can be used to emit events.
  */
-export const formSignalEventEmitterToken = new OpaqueToken('formSignalEventEmitter');
+export const formSignalEventEmitterToken = new InjectionToken('formSignalEventEmitter');
 
 /**
  * Signal send by a field to a form implementation.
