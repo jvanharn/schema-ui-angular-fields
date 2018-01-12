@@ -943,7 +943,7 @@ export class FieldContextProvider {
         // Copy the visible properties that are relevant.
         if (!_.isEmpty(this.visible)) {
             var applicable = this.visible.filter(x => x.startsWith(pointer));
-            if (schema.propertyPrefix === pointer) {
+            if (schema.propertyPrefix === pointer + '/') {
                 ctx.visible = applicable;
             }
             else {
