@@ -23,8 +23,8 @@ import { FieldComponentContext, fieldComponentContextToken } from './models/form
 import { LinkedDataProvider } from './linked-data-provider.service';
 import { FormFieldService } from './form-field.service';
 
-import * as debuglib from 'debug';
-var debug = debuglib('schema-ui:field-component-swapper');
+import debuglib from 'debug';
+const debug = debuglib('schema-ui:field-component-swapper');
 
 /**
  * Field descriptor with properties specific to the form builder.

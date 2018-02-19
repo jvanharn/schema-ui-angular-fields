@@ -30,8 +30,8 @@ import {
 import * as _ from 'lodash';
 import * as pointer from 'json-pointer';
 
-import * as debuglib from 'debug';
-var debug = debuglib('schema-ui:field-context-provider');
+import debuglib from 'debug';
+const debug = debuglib('schema-ui:field-context-provider');
 
 /**
  * Class that maintains a list of fieldsets and fields for a form builder.
@@ -461,7 +461,7 @@ export class FieldContextProvider {
                 .then(valid => {
                     if (!valid.valid) {
                         return field.validation = {
-                            message: _(valid.errors)
+                            message: (valid.errors || [])
                                 .map(err => this.translateValidationMessage(err))
                                 .join(', '),
                             valid: false,

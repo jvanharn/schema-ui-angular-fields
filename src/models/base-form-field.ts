@@ -1,7 +1,7 @@
 import { Subject } from 'rxjs';
 
-import * as debuglib from 'debug';
-var debug = debuglib('schema-ui:base-form-field');
+import debuglib from 'debug';
+const debug = debuglib('schema-ui:base-form-field');
 
 import { FormField } from './form-field';
 import { FieldComponentContext } from './form-field-context';

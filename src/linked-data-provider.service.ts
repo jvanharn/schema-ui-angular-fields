@@ -8,7 +8,7 @@ import { fieldComponentContextToken, FieldComponentContext } from './models/form
 import { LinkedDataCache } from './linked-data-cache.service';
 
 import * as pointer from 'json-pointer';
-import * as debuglib from 'debug';
+import debuglib from 'debug';
 const debug = debuglib('schema-ui:linked-data-provider');
 
 /**

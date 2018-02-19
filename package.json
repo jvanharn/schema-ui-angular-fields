@@ -1,37 +1,42 @@
 {
+  "$schema": "./node_modules/ng-packagr/package.schema.json",
   "name": "schema-ui-angular-fields",
-  "version": "0.7.2",
+  "version": "1.0.0",
   "description": "Schema UI - Angular Fields Implementation",
   "main": "src/index.js",
   "module": "src/index.js",
   "typings": "src/index.d.ts",
+  "ngPackage": {
+    "lib": {
+      "entryFile": "src/index.ts"
+    }
+  },
   "scripts": {
-    "prebuild": "rimraf -g \"src/**/*.{js,js.map,d.ts,ngfactory.ts,metadata.json,ngsummary.json}\"",
-    "build": "ngc -p tsconfig-aot.json"
+    "pub": "npm publish dist",
+    "build": "ng-packagr -p package.json"
   },
   "files": [
-    "src/**/*"
+    "dist/**/*"
   ],
   "author": "J. van Harn <jeffrey.wizkid@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "json-schema-services": "^0.6.8",
     "lodash": "^4.17.4",
-    "debug": "3.1.0"
+    "debug": "^3.1.0"
   },
   "devDependencies": {
-    "@angular/compiler": "^4.3.1",
-    "@angular/compiler-cli": "^4.3.1",
-    "@angular/core": "^4.3.1",
-    "@types/debug": "0.0.29",
+    "@angular/compiler": "^5.2.0",
+    "@angular/compiler-cli": "^5.2.0",
+    "@angular/core": "^5.2.0",
     "@types/json-pointer": "^1.0.30",
     "@types/lodash": "^4.14.71",
-    "rimraf": "^2.6.1",
-    "rxjs": "^5.0.1",
+    "ng-packagr": "^2.0.0",
+    "rxjs": "^5.5.6",
     "typescript": "2.6.x",
-    "zone.js": "^0.8.14"
+    "zone.js": "^0.8.20"
   },
   "peerDependencies": {
-    "@angular/core": "^4.3.1"
+    "@angular/core": "^5.2.0"
   }
 }

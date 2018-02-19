@@ -1,7 +1,2 @@
 node_modules
-src/**/*.js
-src/**/*.js.map
-src/**/*.d.ts
-src/**/*.ngfactory.ts
-src/**/*.ngsummary.json
-src/**/*.metadata.json
+dist/
