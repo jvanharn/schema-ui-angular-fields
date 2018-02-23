@@ -9,8 +9,7 @@ import { FieldComponentContext } from './form-field-context';
 /**
  * Base field implementation that contains the common logic for form fields.
  */
-export abstract class BaseFormField<T> implements FormField<T>
-{
+export abstract class BaseFormField<T> implements FormField<T> {
     /**
      * Whether or not the field is loading.
      */

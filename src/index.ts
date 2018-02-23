@@ -3,6 +3,7 @@ export * from './models/signals';
 export * from './models/form-field';
 export * from './models/form-field-context';
 export * from './models/form-field-validation';
+export * from './models/registerable-form-field';
 
 export * from './pointer-tools';
 

@@ -1,5 +1,6 @@
 import { Injectable, Inject, Injector, Type, InjectionToken, ANALYZE_FOR_ENTRY_COMPONENTS } from '@angular/core';
 import { FormField } from './models/form-field';
+import { formFieldRegistration, RegisterableFormField } from './models/registerable-form-field';
 
 export const LOAD_FORM_FIELDS = new InjectionToken('LoadFormFields');
 
@@ -88,19 +89,38 @@ export class FormFieldService {
      */
     private tryGetFieldComponentByName<T extends FormField<any>>(name: string, injector: Injector): Type<T> | null {
         try {
-            var fields: any[] = [].concat.apply([], this.injector.get(LOAD_FORM_FIELDS));
+            var fields: formFieldRegistration[] = [].concat.apply([], this.injector.get<formFieldRegistration[]>(LOAD_FORM_FIELDS));
         }
         catch(err) {
             console.error('Unable to fetch the available fields.', err);
             return null;
         }
-        return fields.find(x => removeRight(x['name'], 'Component') === name);
+
+        var result: formFieldRegistration | null = fields.find(entry => {
+            if (Array.isArray(entry as any)) {
+                return (entry as any)[0] === name;
+            }
+            else if ((entry as RegisterableFormField).fieldName == null) {
+                console.warn(`Warning: The field by name "${(entry as any).name}" does not contain a static name, which will result in this field failing to load when using it in packers like Webpack!
+Add something like "public static fieldName: string = '${removeRight((entry as any).name, 'Component')}';", take care to not include the "Component" part in this name!`);
+                (entry as RegisterableFormField).fieldName = (entry as any).name;
+                return (entry as RegisterableFormField).fieldName === name;
+            }
+            else {
+                return (entry as RegisterableFormField).fieldName === name;
+            }
+        });
+
+        if (result != null) {
+            return Array.isArray(result) ? result[1] as any : result;
+        }
+        return null;
     }
 
     /**
      * Provide form fields to extend the form.
      */
-    public static provideFormFields(fields: Type<FormField<any>>[]): any[] {
+    public static provideFormFields(fields: formFieldRegistration[]): any[] {
         return [
             { provide: ANALYZE_FOR_ENTRY_COMPONENTS, useValue: fields, multi: true },
             { provide: LOAD_FORM_FIELDS, useValue: fields, multi: true }
