@@ -18,11 +18,14 @@ import {
     InjectionToken,
     Optional,
 } from '@angular/core';
+import { IRelatableSchemaAgent } from 'json-schema-services';
 
 import { FormField } from './models/form-field';
 import { FieldComponentContext, fieldComponentContextToken } from './models/form-field-context';
 import { LinkedDataProvider } from './linked-data-provider.service';
 import { FormFieldService } from './form-field.service';
+import { FieldContextProvider } from './field-context-provider.service';
+import { LinkedDataCache } from './linked-data-cache.service';
 
 import debuglib from 'debug';
 const debug = debuglib('schema-ui:field-component-swapper');
@@ -98,7 +101,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
 
         // Refresh/get the component to initialize based on the meta-data (if we didnt already).
         if (!this.component || (!!this.context && this.context.meta.field.type !== context.meta.field.type)) {
-            this.component = this.fields.getFieldComponentByName<T>(context.meta.field.type, this.injector);
+            this.component = this.fields.getFieldComponentByName<T>(context.meta.field.type, this.fieldSwitchInjector || this.vcRef.parentInjector);
             if (!this.component) {
                 this.error(`Component could not be found for field.type "${context.meta.field.type}".`);
                 return;
@@ -106,18 +109,29 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
         }
 
         // Collect bindings for the injector.
-        let bindings: ResolvedReflectiveProvider[] = ReflectiveInjector.resolve([
-            // Provide the form field descriptor if the field only needs that.
-            { provide: formFieldDescriptorToken, useValue: context.meta },
+        let bindings: ResolvedReflectiveProvider[];
+        try {
+            bindings = ReflectiveInjector.resolve([
+                // Provide the form field descriptor if the field only needs that.
+                { provide: formFieldDescriptorToken, useValue: context.meta },
 
-            // Provide the form field context as provided to this binding.
-            { provide: fieldComponentContextToken, useValue: context },
+                // Provide the form field context as provided to this binding.
+                { provide: fieldComponentContextToken, useValue: context },
 
-            // Provide the form field with an helper to retrieve linked field data.
-            { provide: LinkedDataProvider, useClass: LinkedDataProvider }
-        ]);
-        if (Array.isArray(this.fieldSwitchBindings) && this.fieldSwitchBindings.length > 0) {
-            bindings = bindings.concat(this.fieldSwitchBindings);
+                // Provide the form field with an helper to retrieve linked field data.
+                {
+                    provide: LinkedDataProvider,
+                    useFactory: linkedDataProviderFactory,
+                    deps: ['ISchemaAgent', fieldComponentContextToken, FieldContextProvider, LinkedDataCache],
+                }
+            ]);
+            if (Array.isArray(this.fieldSwitchBindings) && this.fieldSwitchBindings.length > 0) {
+                bindings = bindings.concat(this.fieldSwitchBindings);
+            }
+        }
+        catch (e) {
+            this.error(`Unable to collect bindings for the injector (ReflectiveInjector.resolve), for field "${context.meta.field.type}" No idea yet as to why this happends.`, e);
+            return;
         }
 
         // Construct the Injector needed to supply injection to the comopnent we will be creating.
@@ -131,7 +145,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
             this.error(`Unable to resolve the ComponentFactory for the component.
                 This is probably because the component does not exist,
                 is not set in the "entryComponents" list
-                or is not included in the application bundle for some reason.`);
+                or is not included in the application bundle for some reason.`, e);
             return;
         }
 
@@ -174,7 +188,6 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
         @Inject(ViewContainerRef) private vcRef: ViewContainerRef,
         @Inject(TemplateRef) private tRef: TemplateRef<Object>,
         @Inject(FormFieldService) private fields: FormFieldService,
-        @Inject(Injector) @Optional() private injector: Injector,
     ) { }
 
     /**
@@ -191,11 +204,23 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
     /**
      * Throw an error message, and make the directive display it's errored state.
      */
-    protected error(message: string): void {
-        debug('[warn] ' + message);
+    protected error(message: string, data?: any): void {
+        debug('[warn] ' + message, data);
         console.warn('FieldComponentDirective: ' + message);
         this.onCreate.emit(null);
         this.onCreate.error(message);
         this.vcRef.createEmbeddedView<any>(this.tRef, { errorMessage: message });
     }
+}
+
+/**
+ * Static, named factory function for the linked data provider.
+ */
+export function linkedDataProviderFactory(
+    agent: IRelatableSchemaAgent,
+    field: FieldComponentContext<FormField<any>>,
+    context: FieldContextProvider,
+    cache: LinkedDataCache,
+): LinkedDataProvider {
+    return new LinkedDataProvider(agent, field, context, cache);
 }

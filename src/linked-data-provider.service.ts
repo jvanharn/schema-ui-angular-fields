@@ -42,7 +42,7 @@ export class LinkedDataProvider {
         @Inject('ISchemaAgent') private agent: IRelatableSchemaAgent, //@todo Make this optional, and require an ISchemaClient implementation with @schema-ui/core@1.0.0+
         @Inject(fieldComponentContextToken) private field: FieldComponentContext<FormField<any>>,
         @Inject(FieldContextProvider) private context: FieldContextProvider,
-        @Inject(LinkedDataCache) private cache: LinkedDataCache
+        @Inject(LinkedDataCache) private cache: LinkedDataCache,
     ) { }
 
     /**
