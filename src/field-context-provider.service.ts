@@ -13,6 +13,7 @@ import {
     EntityIdentity,
     ValidationError,
     fixJsonPointerPath,
+    JsonSchema,
 } from 'json-schema-services';
 
 import { FormField, PatchableFormField } from './models/form-field';
@@ -417,7 +418,13 @@ export class FieldContextProvider {
             return 'EnumDropdownField';
         }
         else if (descriptor.type === 'object' && descriptor.patternProperties != null) {
-            return 'ShopsFormField';
+            return 'InlineTabField';
+        }
+        else if (
+            descriptor.type === 'array' &&
+            ((descriptor.items as JsonSchema)['type'] === 'object' || ((descriptor.items as JsonSchema[])[0] && (descriptor.items as JsonSchema[])[0].type === 'object'))
+        ) {
+            return 'InlineListField';
         }
         else if (descriptor.type === 'string') {
             if (descriptor.format === 'date-time' || descriptor.format === 'iso8601')
@@ -432,7 +439,7 @@ export class FieldContextProvider {
             return 'CheckboxField';
         }
 
-        // Safe default (turns into a JSON editor for unknwon subschemas)
+        // Safe default (turns into a JSON editor for unknown subschemas)
         return 'LargeTextField';
     }
 

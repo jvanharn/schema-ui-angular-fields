@@ -9,7 +9,7 @@ import { FieldComponentSwitchDirective } from './field-component-swap.directive'
         FieldComponentSwitchDirective,
     ],
     providers: [
-        FormFieldService,
+        //FormFieldService,
         LinkedDataCache,
     ],
     exports: [
@@ -19,10 +19,27 @@ import { FieldComponentSwitchDirective } from './field-component-swap.directive'
 export class SchemaFieldsModule {
     /**
      * Returns a NgModule for use in the root Module.
+     *
      * @param entryFields A list of dynamically inserted fields (components implementing FormField).
      * @returns ModuleWithProviders
      */
     public static forRoot(entryFields?: Array<Type<any>>): ModuleWithProviders {
+        return {
+            ngModule: SchemaFieldsModule,
+            providers: [
+                FormFieldService,
+                FormFieldService.provideFormFields(entryFields as any[] || []),
+            ],
+        };
+    }
+
+    /**
+     * Returns a NgModule that supplies the given (additional) fields.
+     *
+     * @param entryFields A list of dynamically inserted fields (components implementing FormField).
+     * @returns ModuleWithProviders
+     */
+    public static withFields(entryFields?: Array<Type<any>>): ModuleWithProviders {
         return {
             ngModule: SchemaFieldsModule,
             providers: FormFieldService.provideFormFields(entryFields as any[] || []),

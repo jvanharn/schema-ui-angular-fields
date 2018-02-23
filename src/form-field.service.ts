@@ -18,7 +18,7 @@ export class FormFieldService {
      * Constructs the form field service.
      */
     public constructor(
-        @Inject(Injector) private injector: Injector
+        @Inject(Injector) private injector: Injector,
     ) { }
 
     /**
@@ -40,11 +40,53 @@ export class FormFieldService {
 
     /**
      * Get the field component for the given name.
+     *
+     * @param name The name of the field to fetch the class for.
+     * @param injector Optionally, an injector that should be looked in first before checking other injectors.
      */
-    public getFieldComponentByName<T extends FormField<any>>(name: string): Type<T> | null {
+    public getFieldComponentByName<T extends FormField<any>>(name: string, injector?: Injector): Type<T> | null {
         if (this.hasFieldName(name)) {
             return this.components[name];
         }
+
+        var result: Type<T> | null;
+
+        if (injector) {
+            // Search the provided injector.
+            result = this.tryGetFieldComponentByName(name, injector);
+        }
+
+        if (result === null) {
+            result = this.tryGetFieldComponentByName(name, this.injector);
+        }
+
+        return result;
+    }
+
+    /**
+     * Get the first field component that matches the given field names.
+     *
+     * @param names The names of the fields to fetch the first matching class for.
+     * @param injector Optionally, an injector that should be looked in first before checking other injectors.
+     */
+    public getFirstFieldComponentByNames(names: string[], injector?: Injector): Type<any> | null {
+        var field: Type<any>;
+        for (var name of names) {
+            field = this.getFieldComponentByName(name, injector);
+            if (field != null) {
+                return field;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Attempt to fetch the field list from the given injector.
+     *
+     * @param name Name of the field to fetch the class for.
+     * @param injector The injector that should be searched for the field.
+     */
+    private tryGetFieldComponentByName<T extends FormField<any>>(name: string, injector: Injector): Type<T> | null {
         try {
             var fields: any[] = [].concat.apply([], this.injector.get(LOAD_FORM_FIELDS));
         }
@@ -53,20 +95,6 @@ export class FormFieldService {
             return null;
         }
         return fields.find(x => removeRight(x['name'], 'Component') === name);
-    }
-
-    /**
-     * Get the first field component that matches the given field names.
-     */
-    public getFirstFieldComponentByNames(names: string[]): Type<any> | null {
-        var field: Type<any>;
-        for (var name of names) {
-            field = this.getFieldComponentByName(name);
-            if (field != null) {
-                return field;
-            }
-        }
-        return null;
     }
 
     /**

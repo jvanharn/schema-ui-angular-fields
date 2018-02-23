@@ -16,6 +16,7 @@ import {
     Injector,
     Inject,
     InjectionToken,
+    Optional,
 } from '@angular/core';
 
 import { FormField } from './models/form-field';
@@ -97,7 +98,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
 
         // Refresh/get the component to initialize based on the meta-data (if we didnt already).
         if (!this.component || (!!this.context && this.context.meta.field.type !== context.meta.field.type)) {
-            this.component = this.fields.getFieldComponentByName<T>(context.meta.field.type);
+            this.component = this.fields.getFieldComponentByName<T>(context.meta.field.type, this.injector);
             if (!this.component) {
                 this.error(`Component could not be found for field.type "${context.meta.field.type}".`);
                 return;
@@ -172,7 +173,8 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
         @Inject(ComponentFactoryResolver) private cfr: ComponentFactoryResolver,
         @Inject(ViewContainerRef) private vcRef: ViewContainerRef,
         @Inject(TemplateRef) private tRef: TemplateRef<Object>,
-        @Inject(FormFieldService) private fields: FormFieldService
+        @Inject(FormFieldService) private fields: FormFieldService,
+        @Inject(Injector) @Optional() private injector: Injector,
     ) { }
 
     /**
