@@ -85,11 +85,11 @@ export class FormFieldService {
      * Attempt to fetch the field list from the given injector.
      *
      * @param name Name of the field to fetch the class for.
-     * @param injector The injector that should be searched for the field.
+     * @param injector (Optionally) The injector that should be searched for the field.
      */
-    private tryGetFieldComponentByName<T extends FormField<any>>(name: string, injector: Injector): Type<T> | null {
+    private tryGetFieldComponentByName<T extends FormField<any>>(name: string, injector?: Injector): Type<T> | null {
         try {
-            var fields: formFieldRegistration[] = [].concat.apply([], this.injector.get<formFieldRegistration[]>(LOAD_FORM_FIELDS));
+            var fields: formFieldRegistration[] = [].concat.apply([], (injector || this.injector).get<formFieldRegistration[]>(LOAD_FORM_FIELDS));
         }
         catch(err) {
             console.error('Unable to fetch the available fields.', err);

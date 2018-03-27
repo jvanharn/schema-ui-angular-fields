@@ -1,12 +1,13 @@
 {
   "$schema": "./node_modules/ng-packagr/package.schema.json",
   "name": "schema-ui-angular-fields",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Schema UI - Angular Fields Implementation",
   "ngPackage": {
     "lib": {
       "entryFile": "src/index.ts"
-    }
+    },
+    "whitelistedNonPeerDependencies": [".+"]
   },
   "scripts": {
     "pub": "npm publish dist",
@@ -25,12 +26,12 @@
     "@angular/core": "^5.2",
     "@types/json-pointer": "^1.0.30",
     "@types/lodash": "^4.14.71",
-    "ng-packagr": "^2.0.0",
+    "ng-packagr": "^2.4.1",
     "rxjs": "^5.5.6",
     "typescript": "2.6.x",
     "zone.js": "^0.8.20"
   },
   "peerDependencies": {
-    "@angular/core": "^5.2"
+    "@angular/core": ">=5.2"
   }
 }
