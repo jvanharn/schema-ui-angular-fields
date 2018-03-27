@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/ng-packagr/package.schema.json",
   "name": "schema-ui-angular-fields",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description": "Schema UI - Angular Fields Implementation",
   "ngPackage": {
     "lib": {
@@ -15,7 +15,7 @@
   "author": "J. van Harn <jeffrey.wizkid@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "json-schema-services": "^0.6.8",
+    "json-schema-services": "^0.8.0",
     "lodash": "^4.17.4",
     "debug": "^3.1.0"
   },
