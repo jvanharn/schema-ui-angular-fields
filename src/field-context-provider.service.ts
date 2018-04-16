@@ -879,14 +879,22 @@ export class FieldContextProvider {
                     }
                     catch (e) { }
 
-                    if (field.instance.initialValue === void 0 || iv === void 0) {
-                        result.push({ op: 'add', path: path, value: field.instance.value });
+                    var initEmpty = field.instance.initialValue === void 0 || iv === void 0, changeEmpty = field.instance.value === void 0;
+
+                    if (initEmpty && !changeEmpty) {
+                        result.push({ op: 'add', path, value: field.instance.value });
+                    }
+                    else if (!initEmpty && changeEmpty) {
+                        if (includeTests) {
+                            result.push({ op: 'test', path, value: field.instance.initialValue });
+                        }
+                        result.push({ op: 'remove', path });
                     }
                     else {
                         if (includeTests) {
-                            result.push({ op: 'test', path: path, value: field.instance.initialValue });
+                            result.push({ op: 'test', path, value: field.instance.initialValue });
                         }
-                        result.push({ op: 'replace', path: path, value: field.instance.value });
+                        result.push({ op: 'replace', path, value: field.instance.value });
                     }
                 }
             }
