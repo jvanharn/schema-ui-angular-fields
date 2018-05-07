@@ -1,5 +1,6 @@
 import { Injectable, Inject } from '@angular/core';
-import { Observable, Subject } from 'rxjs';
+import { from, concat, of, merge, Observable } from 'rxjs';
+import { concatMap, debounceTime, map } from 'rxjs/operators';
 import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, SchemaNavigator, JsonSchema, ExtendedFieldDescriptor, SchemaHyperlinkDescriptor } from 'json-schema-services';
 
 import { FieldContextProvider } from './field-context-provider.service';
@@ -150,13 +151,13 @@ export class LinkedDataProvider {
             isDynamic = this.isDynamicHyperSchemaLink(link);
 
         if (!isDynamic) {
-            return Observable.fromPromise(this.resolveLinkedResource(includeOriginal));
+            return from(this.resolveLinkedResource(includeOriginal));
         }
 
-        return this.streamLinkContext(link).concatMap(context =>
-            Observable.fromPromise(
+        return this.streamLinkContext(link).pipe(
+            concatMap(context => from(
                 this.resolveLinkedData(context, true).then(items =>
-                    this.mapMultipleChoice(items, context, isDynamic, includeOriginal))));
+                    this.mapMultipleChoice(items, context, isDynamic, includeOriginal)))));
     }
 
     /**
@@ -252,13 +253,16 @@ export class LinkedDataProvider {
                         observables.push(field.instance.changed);
                     }
                     else {
-                        observables.push(Observable.concat(Observable.of(field.ctx.initialValue), field.instance.changed));
+                        observables.push(concat(of(field.ctx.initialValue), field.instance.changed));
                     }
                 }
             }
         }
 
-        return Observable.merge(...observables).debounceTime(contextStreamValueDebounceTime).map(x => this.getLinkContext(link));
+        return merge(...observables).pipe(
+            debounceTime(contextStreamValueDebounceTime),
+            map(x => this.getLinkContext(link))
+        );
     }
 
     /**
