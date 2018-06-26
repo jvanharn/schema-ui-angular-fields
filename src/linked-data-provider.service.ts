@@ -22,7 +22,9 @@ const contextStreamValueDebounceTime = 350;
  *
  * This class is used by some fields.
  */
-@Injectable()
+@Injectable({
+    providedIn: 'root'
+})
 export class LinkedDataProvider {
     /**
      * Cached promise so we dont fetch the info twice.

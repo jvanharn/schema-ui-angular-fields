@@ -130,7 +130,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
             }
         }
         catch (e) {
-            this.error(`Unable to collect bindings for the injector (ReflectiveInjector.resolve), for field "${context.meta.field.type}" No idea yet as to why this happends.`, e);
+            this.error(`Unable to collect bindings for the injector (ReflectiveInjector.resolve) for field "${context.meta.field.type}".`, e);
             return;
         }
 

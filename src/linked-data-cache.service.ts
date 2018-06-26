@@ -1,10 +1,11 @@
 import { Injectable } from '@angular/core';
-import { IdentityValues } from 'json-schema-services';
 
 /**
  * Caches any linked data that was retrieved for any form, based on it's link descriptor.
  */
-@Injectable()
+@Injectable({
+    providedIn: 'root'
+})
 export class LinkedDataCache {
     /**
      * Cache containing all the data-sets.

@@ -30,6 +30,7 @@ export class SchemaFieldsModule {
             providers: [
                 FormFieldService,
                 FormFieldService.provideFormFields(entryFields || []),
+                LinkedDataCache,
             ],
         };
     }
