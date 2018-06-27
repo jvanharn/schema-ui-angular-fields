@@ -22,7 +22,7 @@ export class LinkedDataCache {
      * @param properties
      * @param state
      */
-    public push(schemaId: string, link: string, properties: string[], state: any): void {
+    public push(schemaId: string, link: string, properties: string[], state: Promise<any>): void {
         this.remove(schemaId, link);
         this.cache.push({
             schemaId,
@@ -38,7 +38,7 @@ export class LinkedDataCache {
      * @param schemaId
      * @param link
      */
-    public fetch(schemaId: string, link: string): any {
+    public fetch(schemaId: string, link: string): Promise<any> {
         for (var item of this.cache) {
             if (item.schemaId === schemaId && item.link === link) {
                 return item.state;
@@ -91,5 +91,5 @@ interface LinkedDataCacheItem {
     schemaId: string;
     link: string;
     properties: string[];
-    state: any;
+    state: Promise<any>;
 }

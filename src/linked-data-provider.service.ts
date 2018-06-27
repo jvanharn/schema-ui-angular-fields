@@ -6,7 +6,6 @@ import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, SchemaNavigator, Js
 import { FieldContextProvider } from './field-context-provider.service';
 import { FormField } from './models/form-field';
 import { fieldComponentContextToken, FieldComponentContext } from './models/form-field-context';
-import { LinkedDataCache } from './linked-data-cache.service';
 import { CachedDataProvider } from './cached-data-provider.service';
 import { SimplifiedLinkedResource } from './simplified-resource';
 import { SimplifiedResourceMapper } from './simplified-resource-mapper';
@@ -48,7 +47,6 @@ export class LinkedDataProvider {
         @Inject(fieldComponentContextToken) private field: FieldComponentContext<FormField<any>>,
         @Inject(CachedDataProvider) private provider: CachedDataProvider,
         @Inject(FieldContextProvider) private context: FieldContextProvider,
-        @Inject(LinkedDataCache) private cache: LinkedDataCache,
     ) { }
 
     /**
@@ -170,7 +168,7 @@ export class LinkedDataProvider {
         }
 
         return this.mapper = this.provider.resolveAgentChild(this.agent, this.field.meta.field.link as string, context, forceReload, true)
-            .then(([agent]) => new SimplifiedResourceMapper(agent.schema, this.field.meta));
+            .then(([agent]) => new SimplifiedResourceMapper(agent.schema, this.field.meta.field));
     }
 
     /**

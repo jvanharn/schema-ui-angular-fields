@@ -25,7 +25,6 @@ import { FieldComponentContext, fieldComponentContextToken } from './models/form
 import { LinkedDataProvider } from './linked-data-provider.service';
 import { FormFieldService } from './form-field.service';
 import { FieldContextProvider } from './field-context-provider.service';
-import { LinkedDataCache } from './linked-data-cache.service';
 
 import debuglib from 'debug';
 import { CachedDataProvider } from './cached-data-provider.service';
@@ -121,7 +120,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
                 {
                     provide: LinkedDataProvider,
                     useFactory: linkedDataProviderFactory,
-                    deps: ['ISchemaAgent', fieldComponentContextToken, CachedDataProvider, FieldContextProvider, LinkedDataCache],
+                    deps: ['ISchemaAgent', fieldComponentContextToken, CachedDataProvider, FieldContextProvider],
                 }
             ]);
             if (Array.isArray(this.fieldSwitchBindings) && this.fieldSwitchBindings.length > 0) {
@@ -220,7 +219,6 @@ export function linkedDataProviderFactory(
     field: FieldComponentContext<FormField<any>>,
     provider: CachedDataProvider,
     context: FieldContextProvider,
-    cache: LinkedDataCache,
 ): LinkedDataProvider {
-    return new LinkedDataProvider(agent, field, provider, context, cache);
+    return new LinkedDataProvider(agent, field, provider, context);
 }

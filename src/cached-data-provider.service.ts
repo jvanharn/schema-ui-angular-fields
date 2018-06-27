@@ -38,7 +38,7 @@ export class CachedDataProvider {
             // Fetch state from cache.
             var state = this.cache.fetch(agent.schema.schemaId, linkName);
             if (state !== null) {
-                return Promise.resolve(state);
+                return state;
             }
         }
         else {
@@ -61,7 +61,7 @@ export class CachedDataProvider {
             // Fetch state from cache.
             var state = this.cache.fetch(schemaId, linkName);
             if (state !== null) {
-                return Promise.resolve(state);
+                return state;
             }
         }
         else {
@@ -98,10 +98,8 @@ export class CachedDataProvider {
                 });
         }
 
-        return result.then(data => {
-            this.cache.push(agent.schema.schemaId, linkName, [], data);
-            return data;
-        });
+        this.cache.push(agent.schema.schemaId, linkName, [], result);
+        return result;
     }
 
     /**
@@ -172,6 +170,11 @@ export class CachedDataProvider {
      * @param forceReload
      */
     public resolveLinkedAgent(schemaId: string, linkName: string = 'list', context?: any, forceReload?: boolean): Promise<IRelatableSchemaAgent> {
+        const cacheKey = schemaId + linkName + 'child';
+        if (this.agents[cacheKey] && forceReload !== false) {
+            return this.agents[cacheKey].then(([x]) => x);
+        }
+
         return this.resolveAgent(schemaId, linkName, context, forceReload).then(([agent, isChild]) => {
             if (isChild) {
                 return agent;
