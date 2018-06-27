@@ -45,7 +45,10 @@ export class CachedDataProvider {
             this.cache.invalidate(agent.schema.schemaId);
         }
 
-        return this.resolveDataFromAgent(agent, linkName, pntr, context);
+        var result = this.resolveDataFromAgent(agent, linkName, pntr, context);
+
+        this.cache.push(agent.schema.schemaId, linkName, [], result);
+        return result;
     }
 
     /**
@@ -68,24 +71,25 @@ export class CachedDataProvider {
             this.cache.invalidate(schemaId);
         }
 
-        return this.resolveAgent(schemaId, linkName, context, forceReload)
+        var result = this.resolveAgent(schemaId, linkName, context, forceReload)
             .then(([agent, resolvedThrough]) =>
                 this.resolveDataFromAgent(agent, resolvedThrough ? 'list' : String(linkName), pntr, context));
+
+        this.cache.push(schemaId, linkName, [], result);
+        return result;
     }
 
     /**
      * Resolve a list of data from the given agent.
      */
     private resolveDataFromAgent(agent: IRelatableSchemaAgent, linkName: string, pntr?: string, context?: any): Promise<any[]> {
-        var result: Promise<any[]>;
-
         if (linkName.startsWith('list')) {
-            result = agent
+            return agent
                 .list(1, 1000, linkName, context)
                 .then(cursor => cursor.all());
         }
         else {
-            result = agent
+            return agent
                 .read<any>(context, linkName)
                 .then(item => {
                     try {
@@ -97,9 +101,6 @@ export class CachedDataProvider {
                     return [];
                 });
         }
-
-        this.cache.push(agent.schema.schemaId, linkName, [], result);
-        return result;
     }
 
     /**

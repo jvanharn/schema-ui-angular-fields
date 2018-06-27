@@ -19,7 +19,7 @@ export class SimplifiedResourceMapper {
     public transform(items: any[], includeOriginal?: boolean): SimplifiedLinkedResource[] {
         return items
             .map(item => ({
-                name: this.getDisplayName(items, item),
+                name: this.getDisplayName(item, items),
                 description: this.getDescription(item),
                 order: this.getOrder(item),
                 value: this.getIdentityValue(item),
@@ -37,7 +37,7 @@ export class SimplifiedResourceMapper {
             });
     }
 
-    public getDisplayName(items: any[], item: any): string {
+    public getDisplayName(item: any, items: any[] = [item]): string {
         if (this.field.data == null || this.field.data.label == null) {
             return item['name'] || item['displayName'] || item['internalName'] || item['entity'];
         }

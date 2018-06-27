@@ -163,7 +163,7 @@ export class LinkedDataProvider {
      * @param forceReload
      */
     protected getSimplifiedResourceMapper(context?: any, forceReload?: boolean): Promise<SimplifiedResourceMapper> {
-        if (!forceReload) {
+        if (!forceReload && !!this.mapper) {
             return this.mapper;
         }
 
