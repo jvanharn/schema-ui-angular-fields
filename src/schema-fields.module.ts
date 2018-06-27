@@ -1,6 +1,7 @@
 import { NgModule, ModuleWithProviders } from '@angular/core';
 
 import { FormFieldService, LOAD_FORM_FIELDS } from './form-field.service';
+import { CachedDataProvider } from './cached-data-provider.service';
 import { LinkedDataCache } from './linked-data-cache.service';
 import { FieldComponentSwitchDirective } from './field-component-swap.directive';
 import { formFieldRegistration } from './models/registerable-form-field';
@@ -10,8 +11,7 @@ import { formFieldRegistration } from './models/registerable-form-field';
         FieldComponentSwitchDirective,
     ],
     providers: [
-        //FormFieldService,
-        LinkedDataCache,
+        CachedDataProvider,
     ],
     exports: [
         FieldComponentSwitchDirective,

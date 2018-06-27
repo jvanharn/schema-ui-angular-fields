@@ -7,8 +7,10 @@ import { FieldContextProvider } from './field-context-provider.service';
 import { FormField } from './models/form-field';
 import { fieldComponentContextToken, FieldComponentContext } from './models/form-field-context';
 import { LinkedDataCache } from './linked-data-cache.service';
+import { CachedDataProvider } from './cached-data-provider.service';
+import { SimplifiedLinkedResource } from './simplified-resource';
+import { SimplifiedResourceMapper } from './simplified-resource-mapper';
 
-import * as pointer from 'json-pointer';
 import debuglib from 'debug';
 const debug = debuglib('schema-ui:linked-data-provider');
 
@@ -21,10 +23,10 @@ const contextStreamValueDebounceTime = 350;
  * Class that helps with resolving linked field data.
  *
  * This class is used by some fields.
+ *
+ * TODO: Refactor this to make a version that does not depend on being in a form.
  */
-@Injectable({
-    providedIn: 'root'
-})
+@Injectable()
 export class LinkedDataProvider {
     /**
      * Cached promise so we dont fetch the info twice.
@@ -32,9 +34,9 @@ export class LinkedDataProvider {
     private data: Promise<any[]>;
 
     /**
-     * Cached schema agent for the linked resource.
+     * Simplified resource mapper instance.
      */
-    private linkedAgent: Promise<ISchemaAgent>;
+    private mapper: Promise<SimplifiedResourceMapper>;
 
     /**
      * Whether or not we are currently loading.
@@ -44,6 +46,7 @@ export class LinkedDataProvider {
     public constructor(
         @Inject('ISchemaAgent') private agent: IRelatableSchemaAgent, //@todo Make this optional, and require an ISchemaClient implementation with @schema-ui/core@1.0.0+
         @Inject(fieldComponentContextToken) private field: FieldComponentContext<FormField<any>>,
+        @Inject(CachedDataProvider) private provider: CachedDataProvider,
         @Inject(FieldContextProvider) private context: FieldContextProvider,
         @Inject(LinkedDataCache) private cache: LinkedDataCache,
     ) { }
@@ -74,50 +77,10 @@ export class LinkedDataProvider {
             if (this.data != null) {
                 return this.data;
             }
-
-            // Fetch state from cache.
-            var state = this.cache.fetch(this.agent.schema.schemaId, this.field.meta.field.link as string);
-            if (state !== null) {
-                return Promise.resolve(state);
-            }
         }
 
-        if (this.agent.schema.hasLink(this.field.meta.field.link)) {
-            this.loading = true;
-            this.linkedAgent = null;
-            return this.data = Promise.resolve(context)
-                .then(ctx => {
-                    if (startsWith(this.field.meta.field.link as string, 'list')) {
-                        return this.agent
-                            .list(1, 1000, this.field.meta.field.link as any, ctx)
-                            .then(cursor => cursor.all());
-                    }
-                    else if (startsWith(this.field.meta.field.link as string, 'read')) {
-                        return this.agent
-                            .read<any>(ctx, this.field.meta.field.link as any)
-                            .then(item => {
-                                try {
-                                    return pointer.get(item, this.field.meta.field.data['pointer'] || '/');
-                                }
-                                catch (e) {
-                                    debug(`[warn] unable to get the data for pointer "${this.field.meta.field.data['pointer']}"`);
-                                }
-                                return [];
-                            });
-                    }
-                    else {
-                        throw new Error('I cannot resolve this link, tip: prefix the link name with "read-" or "list-" so we know what to do.');
-                    }
-                })
-                .then(state => {
-                    this.cache.push(this.agent.schema.schemaId, this.field.meta.field.link as string, [], state);
-                    this.loading = false;
-                    return state;
-                });
-        }
-        else {
-            return Promise.reject(new Error('MultiSelectField: Field link is not a valid hyperlink: it doesnt exist on the current schema.'));
-        }
+        return this.data = this.provider.resolveDataThrough(
+            this.agent, this.field.meta.field.link as string, !!this.field.meta.field.data ? this.field.meta.field.data.pointer : void 0, context, forceReload);
     }
 
     /**
@@ -192,10 +155,22 @@ export class LinkedDataProvider {
      * @param context The context of the form (e.g. other form values)
      */
     public createLinkedAgent(context?: any, forceReload?: boolean): Promise<ISchemaAgent> {
-        if (forceReload !== true && this.linkedAgent != null) {
-            return this.linkedAgent;
+        return this.provider.resolveAgentChild(this.agent, this.field.meta.field.link as string, context, forceReload, true).then(([agent]) => agent);
+    }
+
+    /**
+     * Get mapper to transform data into simplified form.
+     *
+     * @param context
+     * @param forceReload
+     */
+    protected getSimplifiedResourceMapper(context?: any, forceReload?: boolean): Promise<SimplifiedResourceMapper> {
+        if (!forceReload) {
+            return this.mapper;
         }
-        return this.linkedAgent = this.agent.createChildByLink(this.field.meta.field.link as string, context);
+
+        return this.mapper = this.provider.resolveAgentChild(this.agent, this.field.meta.field.link as string, context, forceReload, true)
+            .then(([agent]) => new SimplifiedResourceMapper(agent.schema, this.field.meta));
     }
 
     /**
@@ -207,24 +182,7 @@ export class LinkedDataProvider {
      * @param includeOriginal Whether or not original.
      */
     protected mapMultipleChoice(items: any[], context: any, forceReload?: boolean, includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
-        return this.createLinkedAgent(context, forceReload).then(agent => items
-            .map(item => ({
-                name: getDisplayName(this.field.meta, items, item),
-                description: getDescription(this.field.meta, item),
-                order: getOrder(this.field.meta, item),
-                value: getIdentityValue(agent.schema, this.field.meta, item),
-                parent: getParentValue(this.field.meta, item),
-                original: includeOriginal ? item : null
-            } as SimplifiedLinkedResource))
-            .sort((a: SimplifiedLinkedResource, b: SimplifiedLinkedResource) => {
-                if (a.order === b.order) {
-                    return String(a.name).localeCompare(String(b.name));
-                }
-                if (a.order > b.order) {
-                    return 1;
-                }
-                return -1;
-            }));
+        return this.getSimplifiedResourceMapper(context, forceReload).then(mapper => mapper.transform(items, includeOriginal));
     }
 
     /**
@@ -283,106 +241,4 @@ export class LinkedDataProvider {
         }
         return false;
     }
-}
-
-function getDisplayName(field: ExtendedFieldDescriptor, items: any[], item: any): string {
-    if (field.field.data == null || field.field.data.label == null) {
-        return item['name'] || item['displayName'] || item['internalName'] || item['entity'];
-    }
-    if (field.field.data.parent && field.field.data.mergeLabelWithParents === true) {
-        return getDisplayNameForParent(field, items, item, item[field.field.data.label]);
-    }
-    return item[field.field.data.label];
-}
-
-function getDisplayNameForParent(field: ExtendedFieldDescriptor, items: any[], item: any, label: string): string {
-    if (item[field.field.data.parent] != null) {
-        var parent = (items || []).find(x => x[field.field.data.value] === item[field.field.data.parent]);
-        if (parent != null) {
-            label = parent[field.field.data.label] + ' › ' + label;
-            if (parent[field.field.data.parent] != null) {
-                label = getDisplayNameForParent(field, items, parent, label);
-            }
-        }
-    }
-    return label;
-}
-
-function getDescription(field: ExtendedFieldDescriptor, item: any): string {
-    if (field.field.data == null || field.field.data.description == null) {
-        return item['description'];
-    }
-    return item[field.field.data.description];
-}
-
-function getOrder(field: ExtendedFieldDescriptor, item: any): number {
-    if (field.field.data == null || field.field.data.order == null) {
-        return parseInt(item['order'], 10) || 0;
-    }
-    return parseInt(item[field.field.data.order], 10);
-}
-
-function getIdentityValue(schema: SchemaNavigator, field: ExtendedFieldDescriptor, item: any): IdentityValue {
-    if (field.field.data == null || field.field.data.label == null) {
-        try {
-            // This will only work with listed properties (not with sub properties)
-            return schema.getIdentityValue(item);
-        }
-        catch (e) {
-            debug(`[warn] I cannot fetch the identity property for ${schema.entity}, please set it manually using the "value" data-property!`);
-            return item['id'] || item['name'] || item['entity'];
-        }
-    }
-    return item[field.field.data.value];
-}
-
-function getParentValue(field: ExtendedFieldDescriptor, item: any): IdentityValue {
-    if (field.field.data == null || field.field.data.parent == null) {
-        return item['parent'];
-    }
-    return item[field.field.data.parent];
-}
-
-function startsWith(str: string, target: string) {
-    return String(str).slice(0, target.length) == String(target);
-}
-
-/**
- * Standardized object that represents the linked object, but only contains the values necesarry to display/choose the linked resource.
- */
-export interface SimplifiedLinkedResource {
-    /**
-     * A short name that can be used for short displays.
-     */
-    name: string;
-
-    /**
-     * An completer description.
-     */
-    description: string;
-
-    /**
-     * The ordering number if applicable or 0.
-     */
-    order: number;
-
-    /**
-     * Whether or not this item is disabled.
-     */
-    disabled?: boolean;
-
-    /**
-     * The actual identity value(s) that link the two objects.
-     */
-    value: IdentityValue;
-
-    /**
-     * The identity value of the parent item, if set in the schema.
-     */
-    parent?: IdentityValue;
-
-    /**
-     * Original unmapped item.
-     */
-    original?: any;
 }

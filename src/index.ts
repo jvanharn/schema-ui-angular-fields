@@ -6,10 +6,13 @@ export * from './models/form-field-validation';
 export * from './models/registerable-form-field';
 
 export * from './pointer-tools';
+export * from './simplified-resource';
+export * from './simplified-resource-mapper';
 
 export * from './form-field.service';
 export * from './field-context-provider.service';
 export * from './linked-data-cache.service';
+export * from './cached-data-provider.service';
 export * from './linked-data-provider.service';
 export * from './field-component-swap.directive';
 export * from './schema-fields.module';

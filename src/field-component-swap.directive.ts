@@ -28,6 +28,7 @@ import { FieldContextProvider } from './field-context-provider.service';
 import { LinkedDataCache } from './linked-data-cache.service';
 
 import debuglib from 'debug';
+import { CachedDataProvider } from './cached-data-provider.service';
 const debug = debuglib('schema-ui:field-component-swapper');
 
 /**
@@ -39,8 +40,6 @@ export const formFieldDescriptorToken = new InjectionToken('ExtendedFieldDescrip
  * Outlet for components to be loaded in.
  *
  * <ng-template [fieldComponentSwapper]="field.ctx" [swapCmpBindings]="fieldBindings" [swapCmpProjectables]="ctx.projectableNodes"></ng-template>
- *
- * @author J. van Harn <jharn@smartphonehoesjes.nl>
  */
 @Directive({
     selector: '[fieldSwitch]'
@@ -122,7 +121,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
                 {
                     provide: LinkedDataProvider,
                     useFactory: linkedDataProviderFactory,
-                    deps: ['ISchemaAgent', fieldComponentContextToken, FieldContextProvider, LinkedDataCache],
+                    deps: ['ISchemaAgent', fieldComponentContextToken, CachedDataProvider, FieldContextProvider, LinkedDataCache],
                 }
             ]);
             if (Array.isArray(this.fieldSwitchBindings) && this.fieldSwitchBindings.length > 0) {
@@ -219,8 +218,9 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
 export function linkedDataProviderFactory(
     agent: IRelatableSchemaAgent,
     field: FieldComponentContext<FormField<any>>,
+    provider: CachedDataProvider,
     context: FieldContextProvider,
     cache: LinkedDataCache,
 ): LinkedDataProvider {
-    return new LinkedDataProvider(agent, field, context, cache);
+    return new LinkedDataProvider(agent, field, provider, context, cache);
 }
