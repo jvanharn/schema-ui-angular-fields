@@ -426,6 +426,14 @@ export class FieldContextProvider {
         ) {
             return 'InlineListField';
         }
+        else if (
+            descriptor.type === 'array' &&
+            (   (descriptor.items as JsonSchema)['type'] === 'integer' || (descriptor.items as JsonSchema)['type'] === 'string' ||
+                ((descriptor.items as JsonSchema[])[0] && (descriptor.items as JsonSchema[])[0].type === 'integer') ||
+                ((descriptor.items as JsonSchema[])[0] && (descriptor.items as JsonSchema[])[0].type === 'string'))
+        ) {
+            return 'SelectField';
+        }
         else if (descriptor.type === 'string') {
             if (descriptor.format === 'date-time' || descriptor.format === 'iso8601')
                 return 'DateTimeField';

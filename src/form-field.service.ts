@@ -11,32 +11,73 @@ export const LOAD_FORM_FIELDS = new InjectionToken('LoadFormFields');
 @Injectable()
 export class FormFieldService {
     /**
-     * Component map that maps field names to their component classes.
+     * Lists all fields
      */
-    private components: { [key: string]: Type<any> } = { };
+    private components: CachedFieldComponent[] = [];
 
     /**
      * Constructs the form field service.
      */
     public constructor(
-        @Inject(Injector) private injector: Injector,
-    ) { }
+        @Inject(Injector) injector: Injector,
+    ) {
+        this.registerFieldsFromInjector(injector);
+    }
 
     /**
-     * Register field.
+     * Register a field by it's alias.
+     *
+     * @param alias The alias to register the component by.
      */
-    public registerField<T>(name: string, component: Type<T>): void {
-        if (this.hasFieldName(name)) {
-            throw new Error('FormFieldService.registerField: Field already registered.');
+    public registerField<T>(component: RegisterableFormField, alias: string | string[] = []): void {
+        var aliases = Array.isArray(alias) ? alias : [alias];
+        if (component.fieldName && aliases.indexOf(component.fieldName) < 0) {
+            aliases.unshift(component.fieldName);
         }
-        this.components[name] = component;
+        if (Array.isArray(component.fieldAliases)) {
+            for (var a of component.fieldAliases) {
+                if (aliases.indexOf(a) < 0) {
+                    aliases.push(a);
+                }
+            }
+        }
+
+        this.components.unshift({
+            aliases,
+            component,
+        });
+    }
+
+    /**
+     * Register all field components setup in LOAD_FORM_FIELDS multi injector-tokens.
+     *
+     * @param injector Injector that contains the registrations to add to the form-field-service.
+     */
+    public registerFieldsFromInjector(injector: Injector): void {
+        if (injector == null) {
+            throw new Error('Invalid injector given! Cannot fetch form-field registrations from something that isn\'t an injector!');
+        }
+
+        try {
+            var fields: formFieldRegistration[] = [].concat.apply([], injector.get<formFieldRegistration[]>(LOAD_FORM_FIELDS));
+        }
+        catch(err) {
+            console.error('Unable to fetch the available fields.', err);
+            return null;
+        }
+
+        for (var field of fields) {
+            if (Array.isArray(field)) {
+                this.registerField(field[1] as any, field[0]);
+            }
+        }
     }
 
     /**
      * Check wheather the field with the given name exists.
      */
     public hasFieldName(name: string): boolean {
-        return this.components.hasOwnProperty(name);
+        return this.components.some(x => x.aliases.indexOf(name) >= 0);
     }
 
     /**
@@ -46,10 +87,6 @@ export class FormFieldService {
      * @param injector Optionally, an injector that should be looked in first before checking other injectors.
      */
     public getFieldComponentByName<T extends FormField<any>>(name: string, injector?: Injector): Type<T> | null {
-        if (this.hasFieldName(name)) {
-            return this.components[name];
-        }
-
         var result: Type<T> | null;
 
         if (injector) {
@@ -57,8 +94,8 @@ export class FormFieldService {
             result = this.tryGetFieldComponentByName(name, injector);
         }
 
-        if (result === null) {
-            result = this.tryGetFieldComponentByName(name, this.injector);
+        if (result == null && this.hasFieldName(name)) {
+            return this.components.find(x => x.aliases.indexOf(name) >= 0).component as any;
         }
 
         return result;
@@ -87,9 +124,9 @@ export class FormFieldService {
      * @param name Name of the field to fetch the class for.
      * @param injector (Optionally) The injector that should be searched for the field.
      */
-    private tryGetFieldComponentByName<T extends FormField<any>>(name: string, injector?: Injector): Type<T> | null {
+    private tryGetFieldComponentByName<T extends FormField<any>>(name: string, injector: Injector): Type<T> | null {
         try {
-            var fields: formFieldRegistration[] = [].concat.apply([], (injector || this.injector).get<formFieldRegistration[]>(LOAD_FORM_FIELDS));
+            var fields: formFieldRegistration[] = [].concat.apply([], injector.get<formFieldRegistration[]>(LOAD_FORM_FIELDS));
         }
         catch(err) {
             console.error('Unable to fetch the available fields.', err);
@@ -107,7 +144,7 @@ Add something like "public static fieldName: string = '${removeRight((entry as a
                 return (entry as RegisterableFormField).fieldName === name;
             }
             else {
-                return (entry as RegisterableFormField).fieldName === name;
+                return (entry as RegisterableFormField).fieldName === name || ((entry as RegisterableFormField).fieldAliases || []).some(x => x === name);
             }
         });
 
@@ -133,4 +170,9 @@ function removeRight(str: string, remove: string): string {
         return str.substr(0, str.length - remove.length);
     }
     return str;
+}
+
+interface CachedFieldComponent {
+    aliases: string[];
+    component: RegisterableFormField;
 }

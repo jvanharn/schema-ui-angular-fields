@@ -10,6 +10,11 @@ export interface RegisterableFormField {
      */
     fieldName: string;
 
+    /**
+     * Aliases for the field.
+     */
+    fieldAliases?: string[];
+
     readonly prototype: FormField<any>;
 }
 
