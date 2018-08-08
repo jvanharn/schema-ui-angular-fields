@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@angular/core';
-import { from, concat, of, merge, Observable } from 'rxjs';
+import { from, concat, of, merge, Observable, throwError } from 'rxjs';
 import { concatMap, debounceTime, map } from 'rxjs/operators';
 import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, SchemaNavigator, JsonSchema, ExtendedFieldDescriptor, SchemaHyperlinkDescriptor } from 'json-schema-services';
 
@@ -110,6 +110,10 @@ export class LinkedDataProvider {
      * @return An observable that emits a new array of simplified resources every time an dependency value/field is changed.
      */
     public streamLinkedResource(includeOriginal?: boolean): Observable<SimplifiedLinkedResource[]> {
+        if (this.field.meta.field.link == null || this.field.meta.field.link === '') {
+            return throwError(new Error(`The field "${this.field.pointer}" has no linked resource!`));
+        }
+
         var link = this.agent.schema.getLink(this.field.meta.field.link),
             isDynamic = this.isDynamicHyperSchemaLink(link);
 

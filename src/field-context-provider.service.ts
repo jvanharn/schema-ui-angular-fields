@@ -540,7 +540,7 @@ export class FieldContextProvider {
             //case 'object':
             //    return _.isPlainObject(field.instance.value);
             case 'array':
-                return _.isEmpty(field.instance.value);
+                return !Array.isArray(field.instance.value);
             default:
                 return false;
         }
