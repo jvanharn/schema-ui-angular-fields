@@ -14,6 +14,7 @@ import {
     ValidationError,
     fixJsonPointerPath,
     JsonSchema,
+    ValidationResult,
 } from 'json-schema-services';
 
 import { FormField, PatchableFormField } from './models/form-field';
@@ -84,7 +85,7 @@ export class FieldContextProvider {
      */
     public isValid(): boolean {
         return this.sets.every(
-            set => set.fields.every(
+            set => set.validation.valid && set.fields.every(
                 field => field.validation.valid));
     }
 
@@ -208,6 +209,8 @@ export class FieldContextProvider {
         return <FormFieldSet> {
             id: _.isEmpty(fieldsetId) ? defaultFieldsetId : fieldsetId,
             label: this.translateFieldsetLabel(fieldsetId),
+            pointer: '/' + _.intersection(...mapped.map(x => x.ctx.pointer.split('/').filter(x => x != null && x.length > 0))).join('/'),
+            validation: FieldContextProvider.createPristineFieldvalidationResult(),
             fields: mapped
         };
     }
@@ -222,7 +225,8 @@ export class FieldContextProvider {
     private _mapSchemaToFieldsets(initialValues?: any): FormFieldSet[] {
         // Fetch the schema so we now the location of the initial values per field, and the fieldsets.
         return _.map(this.schema.fieldsets, (fields, fieldsetId) =>
-            this._mapFieldsetFromSchema(fields, this.schema.entity + '_' + fieldsetId, this.getFieldInitialValue.bind(this)));
+            this._mapFieldsetFromSchema(fields, this.schema.entity + '_' + fieldsetId, this.getFieldInitialValue.bind(this)))
+                .sort((a, b) => a.pointer === '/' ? -1 : (b.pointer === '/' ? 1 : 0)); // Make sure the default fieldset is always at the top.
     }
 //endregion
 
@@ -323,7 +327,7 @@ export class FieldContextProvider {
      * Returns whether or not the given field represents the identity of it's parent form. (A parent child relation)
      */
     public isFieldParentIdentifier(field: ExtendedFieldDescriptor): boolean {
-        return this.parent && this.isCreateMode() && this.parent.schema.identityProperties.indexOf(field.name) > -1;
+        return this.parent && this.isCreateMode() && this.parent.schema.identityProperties.indexOf(field.name) > -1 && field.name !== 'name' && field.name !== 'internalname';
     }
 
     /**
@@ -547,12 +551,82 @@ export class FieldContextProvider {
     }
 
     /**
+     * Validate a single fieldset.
+     *
+     * @param set The set to validate.
+     */
+    public validateFieldset(set: FormFieldSet, validateFields: boolean = true): Promise<FormFieldValidationResult[]> {
+        var fields: Promise<FormFieldValidationResult[]>;
+        if (validateFields) {
+            fields = Promise.all(_.map(set.fields, field =>
+                this.isFieldAvailable(field) ? this.validateField(field) : FieldContextProvider.createPristineFieldvalidationResult()));
+        }
+        else {
+            fields = Promise.resolve([]);
+        }
+
+        return fields.then(results => {
+            // Only validate the entire fieldset once all individual fields are valid.
+            if (results.every(x => x.valid)) {
+                var validation: Promise<ValidationResult>;
+                if (set.pointer.length > 1) {
+                    validation = this.validator.then(x => x.validatePointer(set.pointer, pointer.get(this.getData(false, set.id), set.pointer)));
+                }
+                else {
+                    validation = this.validator.then(x => x.validate(this.getData(false)))
+                }
+
+                return validation.then(valid => {
+                    if (!valid.valid) {
+                        results.push(set.validation = {
+                            message: (valid.errors || [])
+                                .map(err => this.translateValidationMessage(err))
+                                .join(', '),
+                            valid: false,
+                            level: ValidationLevel.Error,
+                        } as FormFieldValidationResult);
+                    }
+                    else {
+                        results.push(set.validation = {
+                            message: null,
+                            valid: true,
+                            level: ValidationLevel.Success,
+                        } as FormFieldValidationResult);
+                    }
+
+                    return results;
+                });
+            }
+            return results;
+        });
+    }
+
+    /**
      * Force validation on all fields asynchronously.
      */
     public validate(): Promise<FormFieldValidationResult[]> {
         return Promise.all(
-            _.flatMap(this.sets, set =>
-                _.map(set.fields, field => this.isFieldAvailable(field) ? this.validateField(field) : FieldContextProvider.createPristineFieldvalidationResult())));
+            (this.sets as FormFieldSet[]).slice() // Make sure we sort a copy of the original.
+                .sort((a, b) => a.pointer === '/' ? 1 : (b.pointer === '/' ? -1 : 0)) // Make sure the default fieldset is always checked last.
+                .map(set => this.validateFieldset(set)) // Validate each fieldset.
+        ).then(results => {
+            // Make sure there are no duplicated errors in the root set.
+            for (var set of this.sets) {
+                if (set.pointer === '/') {
+                    continue;
+                }
+
+                if (!set.validation.valid && set.validation.message === this.sets[0].validation.message) {
+                    this.sets[0].validation = {
+                        valid: true,
+                        level: ValidationLevel.Success,
+                        message: null,
+                    };
+                    break;
+                }
+            }
+            return _.flatten(results); // Create one large list of the results.
+        });
     }
 
     /**
@@ -563,6 +637,7 @@ export class FieldContextProvider {
         if (field == null) {
             return false;
         }
+
         field.validation = {
             message: message,
             valid: valid,
@@ -823,31 +898,66 @@ export class FieldContextProvider {
      * Get the data object for the form.
      *
      * @param changedOnly Whether or not to only include the properties that have changed.
-     * @return The form's data model (Untested).
+     * @return The form's data model.
      */
-    public getData(changedOnly: boolean = true): any {
-        // @todo maybe do something with JSON Paths here if this does not always apply.
-        // @todo This code now assumes that all variables should always go in the root of the request object.
+    public getData(changedOnly: boolean = true, fieldsetId?: string): any {
         var result: any = {};
-        this.each(field => {
-            if (!!field.instance && (changedOnly === false || !!field.instance.dirty)) {
-                if (!!field.ctx.pointer) {
-                    pointer.set(result, field.ctx.pointer, field.instance.value);
+
+        for (var fieldset of this.sets) {
+            if (fieldsetId != null && fieldset.id !== fieldsetId) {
+                continue;
+            }
+
+            if (fieldset.pointer) {
+                pointer.set(result, fieldset.pointer, {});
+            }
+
+            for (var field of fieldset.fields) {
+                if (!!field.instance && (changedOnly === false || !!field.instance.dirty)) {
+                    if (!!field.ctx.pointer) {
+                        if (!this.isUndefinedValue(field)) {
+                            pointer.set(result, field.ctx.pointer, field.instance.value);
+                        }
+                    }
+                    else if (field.ctx.required || (!field.ctx.required && field.instance.value !== '')) {
+                        result[field.ctx.name || field.ctx.id] = field.instance.value;
+                    }
                 }
-                else if (field.ctx.required || (!field.ctx.required && field.instance.value !== '')) {
-                    result[field.ctx.name || field.ctx.id] = field.instance.value;
+                else if(!field.instance && changedOnly === false) {
+                    if (!!field.ctx.pointer) {
+                        pointer.set(result, field.ctx.pointer, field.ctx.initialValue);
+                    }
+                    else {
+                        result[field.ctx.name || field.ctx.id] = field.ctx.initialValue;
+                    }
                 }
             }
-            else if(!field.instance && changedOnly === false) {
-                if (!!field.ctx.pointer) {
-                    pointer.set(result, field.ctx.pointer, field.ctx.initialValue);
-                }
-                else {
-                    result[field.ctx.name || field.ctx.id] = field.ctx.initialValue;
-                }
-            }
-        });
+        }
+
         return result;
+    }
+
+    /**
+     * Check whether the field value is an empty/voidable value.
+     *
+     * @param field The field to check.
+     */
+    private isUndefinedValue(field: FormFieldViewModel<FormField<any>>): boolean {
+        if (field.ctx.required) {
+            return false;
+        }
+
+        var val = field.instance.value;
+        switch (field.ctx.meta.type) {
+            case 'integer':
+                return val === null || val === void 0;
+            case 'string':
+                return val === '';
+            case 'array':
+                return val == null || val.length === 0;
+            default:
+                return false;
+        }
     }
 
     /**
@@ -1050,6 +1160,16 @@ export interface FormFieldSet {
      * The label as used in the UI.
      */
     label?: string;
+
+    /**
+     * Pointer to the common root for all fields contained with it.
+     */
+    pointer: string;
+
+    /**
+     * Validation report containing reports about the validity of the field.
+     */
+    validation: FormFieldValidationResult;
 
     /**
      * All fields in the fieldset
