@@ -34,7 +34,6 @@ import * as _ from 'lodash';
 import * as pointer from 'json-pointer';
 
 import debuglib from 'debug';
-import { filter } from 'rxjs/operators';
 const debug = debuglib('schema-ui:field-context-provider');
 
 /**
