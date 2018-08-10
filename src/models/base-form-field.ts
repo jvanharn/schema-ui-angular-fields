@@ -81,7 +81,7 @@ export abstract class BaseFormField<T> implements FormField<T> {
     /**
      * Creates an new instance of this field.
      */
-    public constructor(public context: FieldComponentContext<BaseFormField<T>>, delayValueInit?: boolean) {
+    public constructor(public context: FieldComponentContext, delayValueInit?: boolean) {
         if (delayValueInit !== true) {
             this.initializeFieldValue();
         }

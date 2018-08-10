@@ -1,5 +1,6 @@
 import { Inject, Optional } from '@angular/core';
 import { MessageBundle } from '@angular/compiler';
+import { Subject, Subscription } from 'rxjs';
 import {
     ISchemaAgent,
     IRelatableSchemaAgent,
@@ -33,6 +34,7 @@ import * as _ from 'lodash';
 import * as pointer from 'json-pointer';
 
 import debuglib from 'debug';
+import { filter } from 'rxjs/operators';
 const debug = debuglib('schema-ui:field-context-provider');
 
 /**
@@ -70,7 +72,34 @@ export class FieldContextProvider {
     }
     private _visible: string[];
 
-//region Formmode check methods
+//#region RX Event Emitters
+    /**
+     * An observable that emits the context of a field when it's value has changed.
+     */
+    public fieldChanged$: Subject<FormFieldViewModel<FormField<any>>> = new Subject();
+
+    /**
+     * An observable that emits once any field instance in the form is ready, by the field-component-swap directive.
+     *
+     * @access protected
+     * @ignore
+     */
+    public fieldReady$: Subject<FormFieldViewModel<FormField<any>>> = new Subject();
+
+    /**
+     * An observable that emits once all the instances in the form are ready.
+     *
+     * When the visibility changes and new instances are added, this value will be re-emitted!
+     */
+    public ready$: Subject<void> = new Subject();
+
+    /**
+     * Subscription that listens to fields that become ready.
+     */
+    private fieldReadySubscription: Subscription;
+//#endregion
+
+//region Form-mode check methods
     /**
      * Whether or not any fields are still loading.
      */
@@ -158,6 +187,13 @@ export class FieldContextProvider {
         this.sets = this.mapped = this._mapSchemaToFieldsets(initialValues);
         this._visible = this.extract(f => f.ctx.pointer);
         this.validator = validators.getValidator(schema);
+
+        this.fieldReadySubscription = this.fieldReady$.subscribe(() => {
+            if (!this.isLoading()) {
+                debug('form is done initializing');
+                this.ready$.next();
+            }
+        });
     }
 
 //region Schema Mapping
@@ -190,7 +226,7 @@ export class FieldContextProvider {
                 initialValue: this.isCreateMode() || _.isEmpty(this.initialValues) ? this.getFieldDefaultValue(field) : initialValue,
                 value: initialValue,
                 meta: field
-            } as FieldComponentContext<any>
+            } as FieldComponentContext
         };
     }
 
@@ -245,6 +281,12 @@ export class FieldContextProvider {
      */
     public destroy(): void {
         this.each(field => field.instance = void 0);
+        if (!this.fieldReadySubscription.closed) {
+            this.fieldReadySubscription.unsubscribe();
+        }
+        this.ready$.complete();
+        this.fieldReady$.complete();
+        this.fieldChanged$.complete();
     }
 
     /**
@@ -1212,7 +1254,7 @@ export interface FormFieldViewModel<T extends FormField<any>> {
     /**
      * Instance of the field to track the value for the field etc.
      */
-    ctx: FieldComponentContext<T>;
+    ctx: FieldComponentContext;
 }
 
 type initialFieldValueFetcher = (field: ExtendedFieldDescriptor) => any;

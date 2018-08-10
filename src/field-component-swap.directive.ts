@@ -16,18 +16,19 @@ import {
     Injector,
     Inject,
     InjectionToken,
-    Optional,
 } from '@angular/core';
 import { IRelatableSchemaAgent } from 'json-schema-services';
+import { Subscription } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
 
 import { FormField } from './models/form-field';
 import { FieldComponentContext, fieldComponentContextToken } from './models/form-field-context';
 import { LinkedDataProvider } from './linked-data-provider.service';
 import { FormFieldService } from './form-field.service';
 import { FieldContextProvider } from './field-context-provider.service';
+import { CachedDataProvider } from './cached-data-provider.service';
 
 import debuglib from 'debug';
-import { CachedDataProvider } from './cached-data-provider.service';
 const debug = debuglib('schema-ui:field-component-swapper');
 
 /**
@@ -57,7 +58,12 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
     /**
      * Reference to the set context.
      */
-    private context: FieldComponentContext<T>;
+    private context: FieldComponentContext;
+
+    /**
+     * Change subscriber for the field context provider, if assigned.
+     */
+    private changeSubscriber: Subscription;
 
     /**
      * (Optionally) The injector to use to resolve dependencies.
@@ -78,6 +84,12 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
     //public fieldSwitchProjectables: any[][];
 
     /**
+     * (Optionally) An fieldContextProvider instance to automatically update with formField events.
+     */
+    @Input()
+    public fieldSwitchContextProvider: FieldContextProvider;
+
+    /**
      * Event fired once the component is created.
      */
     @Output()
@@ -87,7 +99,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
      * The main setter that set's the context.
      */
     @Input()
-    public set fieldSwitch(context: FieldComponentContext<T>) {
+    public set fieldSwitch(context: FieldComponentContext) {
         if (!context.meta || !context.meta.field.type) {
             this.error('Unable to initialize; no field.type set on field meta.');
         }
@@ -174,6 +186,11 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
         // Make sure the change detection cycle is started.
         this.componentRef.changeDetectorRef.detectChanges();
 
+        // If we have a set field-context-provider, update it automatically.
+        if (this.fieldSwitchContextProvider) {
+            this.subscribeForFieldContext(context);
+        }
+
         // Notify the parent component that everything has succeeded, and he will get the instance.
         this.onCreate.emit(this.componentRef.instance);
 
@@ -189,6 +206,53 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
     ) { }
 
     /**
+     * Subscribe to change events, in order to notify the context.
+     */
+    private subscribeForFieldContext(context: FieldComponentContext): void {
+        // Make sure were not already subscribed, if this component is reused.
+        this.unsubscribeForFieldContext();
+
+        debug(`subscribe for FieldContextProvider updating of "${context.id}"...`);
+
+        var model = this.fieldSwitchContextProvider.findByPointer(context.pointer);
+        if (model == null) {
+            return this.error('Unable to find the view-model for the current field; unable to set field instance!');
+        }
+
+        // Set the instance on the model, so any users can directly access the field component.
+        model.instance = this.componentRef.instance;
+
+        // Inform the context of use being ready.
+        this.fieldSwitchContextProvider.fieldReady$.next(model);
+
+        // Subscribe to value changes in edit-mode
+        if (this.fieldSwitchContextProvider.isEditMode) {
+            // Setup a subscriber that listens to new values, and notifies the context.
+            this.changeSubscriber = this.componentRef.instance.changed
+                .pipe(debounceTime(500))
+                .subscribe((): void => {
+                    if (!!this.fieldSwitchContextProvider && this.fieldSwitchContextProvider.fieldChanged$) {
+                        this.fieldSwitchContextProvider.fieldChanged$.next(model);
+
+                        this.fieldSwitchContextProvider.validateField(model).catch(err => {
+                            debug(`[warn] on-change validation of field [${model.ctx.id}] failed: `, err);
+                        });
+                    }
+                });
+        }
+    }
+
+    /**
+     * Unsubscribe from any changes on the field.
+     */
+    private unsubscribeForFieldContext(): void {
+        if (this.changeSubscriber) {
+            this.changeSubscriber.unsubscribe();
+            this.changeSubscriber = void 0;
+        }
+    }
+
+    /**
      * Called when this component get's destroyed.
      */
     public ngOnDestroy(): void {
@@ -197,6 +261,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
             this.componentRef.destroy();
             this.componentRef = null;
         }
+        this.unsubscribeForFieldContext();
     }
 
     /**
@@ -216,7 +281,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
  */
 export function linkedDataProviderFactory(
     agent: IRelatableSchemaAgent,
-    field: FieldComponentContext<FormField<any>>,
+    field: FieldComponentContext,
     provider: CachedDataProvider,
     context: FieldContextProvider,
 ): LinkedDataProvider {

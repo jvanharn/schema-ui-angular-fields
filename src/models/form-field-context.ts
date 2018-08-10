@@ -1,8 +1,6 @@
 import { InjectionToken } from '@angular/core';
 import { ExtendedFieldDescriptor } from 'json-schema-services';
 
-import { FormField } from './form-field';
-
 /**
  * Form modes.
  */
@@ -11,7 +9,7 @@ export type FormModes = 'view' | 'edit' | 'copy' | 'create';
 /**
  * Context required to create the field.
  */
-export interface FieldComponentContext<T extends FormField<any>> {
+export interface FieldComponentContext {
     /**
      * Identity to be used for the Label -> field relation
      *
