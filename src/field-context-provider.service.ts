@@ -949,7 +949,7 @@ export class FieldContextProvider {
                 continue;
             }
 
-            if (fieldset.pointer) {
+            if (fieldset.pointer && pointer.length > 1) {
                 pointer.set(result, fieldset.pointer, {});
             }
 
