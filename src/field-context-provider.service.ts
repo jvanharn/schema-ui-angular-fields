@@ -819,6 +819,8 @@ export class FieldContextProvider {
                     id: x.id,
                     label: x.label,
                     fields: x.fields.filter(y => y.visible),
+                    pointer: x.pointer,
+                    validation: x.validation,
                 } as FormFieldSet))
             .filter(x => x.fields.length > 0);
     }
