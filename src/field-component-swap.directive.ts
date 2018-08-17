@@ -212,7 +212,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
         // Make sure were not already subscribed, if this component is reused.
         this.unsubscribeForFieldContext();
 
-        debug(`subscribe for FieldContextProvider updating of "${context.id}"...`);
+        //debug(`subscribe for FieldContextProvider updating of "${context.id}"...`);
 
         var model = this.fieldSwitchContextProvider.findByPointer(context.pointer);
         if (model == null) {

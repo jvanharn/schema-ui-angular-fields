@@ -235,7 +235,7 @@ export class FieldContextProvider {
     private _mapFieldsetFromSchema(
         fields: ExtendedFieldDescriptor[],
         fieldsetId: string,
-        initialValueSelector: initialFieldValueFetcher
+        initialValueSelector: initialFieldValueFetcher,
     ): FormFieldSet {
         // Map fields.
         var mapped = fields.map(definition => this._mapFieldFromSchema(fieldsetId, definition, initialValueSelector(definition)));
@@ -246,7 +246,7 @@ export class FieldContextProvider {
             label: this.translateFieldsetLabel(fieldsetId),
             pointer: '/' + _.intersection(...mapped.map(x => x.ctx.pointer.split('/').filter(x => x != null && x.length > 0))).join('/'),
             validation: FieldContextProvider.createPristineFieldvalidationResult(),
-            fields: mapped
+            fields: mapped,
         };
     }
 
@@ -327,7 +327,7 @@ export class FieldContextProvider {
                 }
             }
 
-            debug(`getPointerInitialValue: something went wrong trying to fetch the initialValue for the pointer "${field.pointer}".`, e);
+            //debug(`getFieldInitialValue: something went wrong trying to fetch the initialValue for the pointer "${field.pointer}".`, e);
         }
 
         if (result == null && field.isRequired) {
@@ -348,7 +348,7 @@ export class FieldContextProvider {
             return pointer.get(this.initialValues, pnt);
         }
         catch (e) {
-            debug(`getPointerInitialValue: something went wrong trying to fetch the initialValue for the pointer "${pnt}".`, e);
+            //debug(`getPointerInitialValue: something went wrong trying to fetch the initialValue for the pointer "${pnt}".`, e);
             return void 0;
         }
     }
