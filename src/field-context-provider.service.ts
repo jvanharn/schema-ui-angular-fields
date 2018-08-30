@@ -611,10 +611,10 @@ export class FieldContextProvider {
             if (results.every(x => x.valid)) {
                 var validation: Promise<ValidationResult>;
                 if (set.pointer.length > 1) {
-                    validation = this.validator.then(x => x.validatePointer(set.pointer, pointer.get(this.getData(false, set.id), set.pointer)));
+                    validation = this.validator.then(x => x.validatePointer(set.pointer, pointer.get(this.getData(set.id), set.pointer)));
                 }
                 else {
-                    validation = this.validator.then(x => x.validate(this.getData(false)))
+                    validation = this.validator.then(x => x.validate(this.getData()))
                 }
 
                 return validation.then(valid => {
@@ -938,16 +938,57 @@ export class FieldContextProvider {
     }
 
     /**
-     * Get the data object for the form.
+     * Get the complete edited data object, merged with the initialValue object.
      *
-     * @param changedOnly Whether or not to only include the properties that have changed.
+     * @param fieldsetId Get the data for a specific fieldset *ONLY*.
+     *
+     * @return The target schema's complete data object, merged with the iniitalValues. (So including properties that do not have a form field.)
+     */
+    public getData(fieldsetId?: string): any {
+        var result: any = this.initialValues ? Object.assign({}, this.initialValues) : {};
+
+        for (var fieldset of this.sets) {
+            if (fieldsetId != null && fieldset.id !== fieldsetId) {
+                continue;
+            }
+
+            if (fieldset.pointer && fieldset.pointer.length > 1 && !pointer.has(result, fieldset.pointer)) {
+                pointer.set(result, fieldset.pointer, {});
+            }
+
+            for (var field of fieldset.fields) {
+                if (!field.ctx.pointer) {
+                    throw new Error('The field by id "${field.ctx.id}" did not have a pointer set; this is required.');
+                }
+
+                if (!!field.instance) {
+                    if (!this.isUndefinedValue(field)) {
+                        pointer.set(result, field.ctx.pointer, field.instance.value);
+                    }
+                    else if (pointer.has(result, field.ctx.pointer)) {
+                        pointer.remove(result, field.ctx.pointer);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Get all values for all fields in the form (the form might not validate for the wrapped schema).
+     *
+     * Use this method when you update the form using partial JSON Objects when creating an object in a REST api, but it can fill in the defaults itself.
+     * Or your forms always contain all properties as fields.
+     *
+     * @param fieldsetId Get the data for a specific fieldset *ONLY*.
+     *
      * @return The form's data model.
      */
-    public getData(changedOnly: boolean = true, fieldsetId?: string): any {
-        var result: any = this.initialValues ? Object.assign({}, this.initialValues) : {},
-            sets = changedOnly ? this.sets : this.mapped;
+    public getFieldData(fieldsetId?: string): any {
+        var result: any = {};
 
-        for (var fieldset of sets) {
+        for (var fieldset of this.sets) {
             if (fieldsetId != null && fieldset.id !== fieldsetId) {
                 continue;
             }
@@ -957,27 +998,46 @@ export class FieldContextProvider {
             }
 
             for (var field of fieldset.fields) {
-                if (!!field.instance && (changedOnly === false || !!field.instance.dirty)) {
-                    if (!!field.ctx.pointer) {
-                        if (!this.isUndefinedValue(field)) {
-                            pointer.set(result, field.ctx.pointer, field.instance.value);
-                        }
-                        else if (pointer.has(result, field.ctx.pointer)) {
-                            pointer.remove(result, field.ctx.pointer);
-                        }
+                if (!field.ctx.pointer) {
+                    throw new Error('The field by id "${field.ctx.id}" did not have a pointer set; this is required.');
+                }
+
+                if (!!field.instance) {
+                    if (!this.isUndefinedValue(field)) {
+                        pointer.set(result, field.ctx.pointer, field.instance.value);
                     }
-                    else if (field.ctx.required || (!field.ctx.required && field.instance.value !== '')) {
-                        result[field.ctx.name || field.ctx.id] = field.instance.value;
+                    else if (pointer.has(result, field.ctx.pointer)) {
+                        pointer.remove(result, field.ctx.pointer);
                     }
                 }
-                //@todo no longer required:
-                else if(!field.instance && changedOnly === false) {
+                else {
                     if (!!field.ctx.pointer) {
                         pointer.set(result, field.ctx.pointer, field.ctx.initialValue);
                     }
                     else {
                         result[field.ctx.name || field.ctx.id] = field.ctx.initialValue;
                     }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Get an object containing only the values of any changed fields.
+     */
+    public getChangedFieldData(): any {
+        var result: any = {};
+
+        for (var fieldset of this.sets) {
+            for (var field of fieldset.fields) {
+                if (!field.ctx.pointer) {
+                    throw new Error('The field by id "${field.ctx.id}" did not have a pointer set; this is required.');
+                }
+
+                if (!!field.instance && !!field.instance.dirty && !this.isUndefinedValue(field)) {
+                    pointer.set(result, field.ctx.pointer, field.instance.value);
                 }
             }
         }
