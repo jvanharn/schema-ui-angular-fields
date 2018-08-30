@@ -944,14 +944,15 @@ export class FieldContextProvider {
      * @return The form's data model.
      */
     public getData(changedOnly: boolean = true, fieldsetId?: string): any {
-        var result: any = {};
+        var result: any = this.initialValues ? Object.assign({}, this.initialValues) : {},
+            sets = changedOnly ? this.sets : this.mapped;
 
-        for (var fieldset of this.sets) {
+        for (var fieldset of sets) {
             if (fieldsetId != null && fieldset.id !== fieldsetId) {
                 continue;
             }
 
-            if (fieldset.pointer && pointer.length > 1) {
+            if (fieldset.pointer && pointer.length > 1 && !pointer.has(result, fieldset.pointer)) {
                 pointer.set(result, fieldset.pointer, {});
             }
 
@@ -961,11 +962,15 @@ export class FieldContextProvider {
                         if (!this.isUndefinedValue(field)) {
                             pointer.set(result, field.ctx.pointer, field.instance.value);
                         }
+                        else if (pointer.has(result, field.ctx.pointer)) {
+                            pointer.remove(result, field.ctx.pointer);
+                        }
                     }
                     else if (field.ctx.required || (!field.ctx.required && field.instance.value !== '')) {
                         result[field.ctx.name || field.ctx.id] = field.instance.value;
                     }
                 }
+                //@todo no longer required:
                 else if(!field.instance && changedOnly === false) {
                     if (!!field.ctx.pointer) {
                         pointer.set(result, field.ctx.pointer, field.ctx.initialValue);

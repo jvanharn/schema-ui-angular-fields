@@ -25,7 +25,7 @@ export interface FieldComponentContext {
     /**
      * The JSON Pointer pointing to the field in the original JSON object.
      */
-    pointer?: string;
+    pointer: string;
 
     /**
      * Initial value of the field.
