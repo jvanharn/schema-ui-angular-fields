@@ -973,7 +973,7 @@ export class FieldContextProvider {
      * @return The target schema's complete data object, merged with the iniitalValues. (So including properties that do not have a form field.)
      */
     public getData(fieldsetId?: string): any {
-        var result: any = this.initialValues ? Object.assign({}, this.initialValues) : {};
+        var result: any = this.initialValues ? _.cloneDeep(this.initialValues) : {};
 
         for (var fieldset of this.sets) {
             if (fieldsetId != null && fieldset.id !== fieldsetId) {
