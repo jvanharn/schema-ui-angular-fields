@@ -20,7 +20,7 @@ import {
 
 import { FormField, PatchableFormField } from './models/form-field';
 import { FieldComponentContext, FormModes } from './models/form-field-context';
-import { ValidatableFormField, FormFieldValidationResult, ValidationLevel } from './models/form-field-validation';
+import { ValidatableFormField, FormFieldValidationResult, ValidationLevel, FormFieldsetFieldValidationResult } from './models/form-field-validation';
 import {
     isRelativePointer,
     isAbsolutePointer,
@@ -596,11 +596,10 @@ export class FieldContextProvider {
      *
      * @param set The set to validate.
      */
-    public validateFieldset(set: FormFieldSet, validateFields: boolean = true): Promise<FormFieldValidationResult[]> {
-        var fields: Promise<FormFieldValidationResult[]>;
+    public validateFieldset(set: FormFieldSet, validateFields: boolean = true): Promise<FormFieldsetFieldValidationResult[]> {
+        var fields: Promise<FormFieldsetFieldValidationResult[]>;
         if (validateFields) {
-            fields = Promise.all(_.map(set.fields, field =>
-                this.isFieldAvailable(field) ? this.validateField(field) : FieldContextProvider.createPristineFieldvalidationResult()));
+            fields = Promise.all(_.map(set.fields, field => this.validateFieldsetField(field)));
         }
         else {
             fields = Promise.resolve([]);
@@ -620,19 +619,21 @@ export class FieldContextProvider {
                 return validation.then(valid => {
                     if (!valid.valid) {
                         results.push(set.validation = {
+                            pointer: set.pointer,
                             message: (valid.errors || [])
                                 .map(err => this.translateValidationMessage(err))
                                 .join(', '),
                             valid: false,
                             level: ValidationLevel.Error,
-                        } as FormFieldValidationResult);
+                        } as FormFieldsetFieldValidationResult);
                     }
                     else {
                         results.push(set.validation = {
+                            pointer: set.pointer,
                             message: null,
                             valid: true,
                             level: ValidationLevel.Success,
-                        } as FormFieldValidationResult);
+                        } as FormFieldsetFieldValidationResult);
                     }
 
                     return results;
@@ -643,9 +644,24 @@ export class FieldContextProvider {
     }
 
     /**
+     * Validate a field for a fieldset.
+     *
+     * @param field The field to validate.
+     */
+    private validateFieldsetField(field: FormFieldViewModel<FormField<any>>): FormFieldsetFieldValidationResult {
+        if (this.isFieldAvailable(field)) {
+            return FieldContextProvider.createPristineFieldsetFieldvalidationResult(field.ctx.pointer);
+        }
+
+        var result: FormFieldsetFieldValidationResult = this.validateField(field) as any;
+        result.pointer = field.ctx.pointer;
+        return result;
+    }
+
+    /**
      * Force validation on all fields asynchronously.
      */
-    public validate(): Promise<FormFieldValidationResult[]> {
+    public validate(): Promise<FormFieldsetFieldValidationResult[]> {
         return Promise.all(
             (this.sets as FormFieldSet[]).slice() // Make sure we sort a copy of the original.
                 .sort((a, b) => a.pointer === '/' ? 1 : (b.pointer === '/' ? -1 : 0)) // Make sure the default fieldset is always checked last.
@@ -692,6 +708,18 @@ export class FieldContextProvider {
      */
     public static createPristineFieldvalidationResult(): FormFieldValidationResult {
         return {
+            message: null,
+            valid: true,
+            level: ValidationLevel.Pristine
+        };
+    }
+
+    /**
+     * Generates an empty/pristine fieldset field validation result.
+     */
+    public static createPristineFieldsetFieldvalidationResult(pntr: string): FormFieldsetFieldValidationResult {
+        return {
+            pointer: pntr,
             message: null,
             valid: true,
             level: ValidationLevel.Pristine

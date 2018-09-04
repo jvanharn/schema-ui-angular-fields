@@ -39,6 +39,16 @@ export interface FormFieldValidationResult {
     valid: boolean;
 }
 
+/**
+ * Invalid validation result for a fieldset field.
+ */
+export interface FormFieldsetFieldValidationResult extends FormFieldValidationResult {
+    /**
+     * Pointer to the field that was validated.
+     */
+    pointer: string;
+}
+
 export interface ServerValidationResult {
     /**
      * The full field path as given by the server.
