@@ -1,8 +1,8 @@
 import { Inject, Optional } from '@angular/core';
 import { MessageBundle } from '@angular/compiler';
-import { Subject, Subscription } from 'rxjs';
+import { Subject, Subscription, timer } from 'rxjs';
+import { debounce } from 'rxjs/operators';
 import {
-    ISchemaAgent,
     IRelatableSchemaAgent,
     EndpointSchemaAgent,
     SchemaNavigator,
@@ -90,7 +90,7 @@ export class FieldContextProvider {
      *
      * When the visibility changes and new instances are added, this value will be re-emitted!
      */
-    public ready$: Subject<void> = new Subject();
+    public ready$: Subject<boolean> = new Subject();
 
     /**
      * Subscription that listens to fields that become ready.
@@ -106,6 +106,15 @@ export class FieldContextProvider {
         return !this.sets.every(
             set => set.fields.every(
                 field => this.isFieldAvailable(field)));
+    }
+
+    /**
+     * Whether or not any fields are still loading.
+     */
+    public isReady(): boolean {
+        return this.sets.every(
+            set => set.fields.every(
+                field => this.isFieldReady(field)));
     }
 
     /**
@@ -187,10 +196,18 @@ export class FieldContextProvider {
         this._visible = this.extract(f => f.ctx.pointer);
         this.validator = validators.getValidator(schema);
 
-        this.fieldReadySubscription = this.fieldReady$.subscribe(() => {
-            if (!this.isLoading()) {
-                debug('form is done initializing');
-                this.ready$.next();
+        var lastReadyState: boolean = false;
+        this.fieldReadySubscription = this.fieldReady$.pipe(debounce(() => timer(50))).subscribe(() => {
+            var isReady = this.isReady();
+            if (isReady && !lastReadyState) {
+                this.ready$.next(lastReadyState = true);
+                debug(`form by id "${this.schema.schemaId}${this.schema.propertyPrefix}" is ready`);
+            }
+            else if (!isReady && !!lastReadyState) {
+                this.ready$.next(lastReadyState = false);
+                debug(
+                    `form by id "${this.schema.schemaId}${this.schema.propertyPrefix}" started reloading`,
+                    this.extract(x => this.isFieldReady(x) ? null : x.ctx.pointer).filter(x => x != null));
             }
         });
     }
@@ -833,6 +850,15 @@ export class FieldContextProvider {
         // null = Field was not avialable, cant be initialized.
         // FormField<any> = Field is initialized, and can be considered loaded when "loading" is set to a falsy value.
         return field.instance === null || (field.instance !== null && field.instance !== void 0 && field.instance.loading !== true);
+    }
+
+    /**
+     * Check whether the given field is visible, and if it is visible, whether it is loaded.
+     *
+     * If the field is not visible, it does not care about it's ready state, and will always return true.
+     */
+    public isFieldReady(field: FormFieldViewModel<any>): boolean {
+        return !field.visible || (field.instance !== null && field.instance !== void 0);
     }
 
     /**
