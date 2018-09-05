@@ -133,7 +133,7 @@ export class FieldContextProvider {
         return this.sets.some(
             set => set.fields.some(
                 // If the field hasnt initialized yet; it is not dirty, except when we are in create mode.
-                field => this.isFieldAvailable(field) && field.instance != null && !!field.instance.dirty));
+                field => this.isFieldReady(field) && !!field.instance.dirty));
     }
 
     /**

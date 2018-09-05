@@ -47,7 +47,13 @@ export class CachedDataProvider {
 
         var result = this.resolveDataFromAgent(agent, linkName, pntr, context);
 
-        this.cache.push(agent.schema.schemaId, linkName, [], result);
+        var targetSchemaId: string;
+        var link = agent.schema.getLink(linkName);
+        if (link != null && link.targetSchema != null) {
+            targetSchemaId = link.targetSchema.$ref
+        }
+
+        this.cache.push(agent.schema.schemaId, linkName, targetSchemaId, [], result);
         return result;
     }
 
@@ -75,7 +81,7 @@ export class CachedDataProvider {
             .then(([agent, resolvedThrough]) =>
                 this.resolveDataFromAgent(agent, resolvedThrough ? 'list' : String(linkName), pntr, context));
 
-        this.cache.push(schemaId, linkName, [], result);
+        this.cache.push(schemaId, linkName, void 0, [], result);
         return result;
     }
 

@@ -22,13 +22,14 @@ export class LinkedDataCache {
      * @param properties
      * @param state
      */
-    public push(schemaId: string, link: string, properties: string[], state: Promise<any>): void {
+    public push(schemaId: string, link: string, targetSchemaId: string, properties: string[], state: Promise<any>): void {
         this.remove(schemaId, link);
         this.cache.push({
             schemaId,
             link,
+            targetSchemaId,
             properties,
-            state
+            state,
         });
     }
 
@@ -64,6 +65,21 @@ export class LinkedDataCache {
     }
 
     /**
+     * Purge all cached items with the given schemaId.
+     *
+     * @param schemaId
+     */
+    public purge(schemaId: string): void {
+        var item: LinkedDataCacheItem;
+        for (var i = 0; i < this.cache.length; i++) {
+            item = this.cache[i];
+            if (item.schemaId === schemaId || item.targetSchemaId === schemaId) {
+                this.cache.splice(i, 1);
+            }
+        }
+    }
+
+    /**
      * Invalidate all data for the given schemaId that reference the given properties.
      *
      * @param schemaId The schemaId that is affected.
@@ -90,6 +106,7 @@ export class LinkedDataCache {
 interface LinkedDataCacheItem {
     schemaId: string;
     link: string;
+    targetSchemaId?: string;
     properties: string[];
     state: Promise<any>;
 }
