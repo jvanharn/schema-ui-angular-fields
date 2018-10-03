@@ -233,10 +233,6 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
                 .subscribe((): void => {
                     if (!!this.fieldSwitchContextProvider && this.fieldSwitchContextProvider.fieldChanged$) {
                         this.fieldSwitchContextProvider.fieldChanged$.next(model);
-
-                        this.fieldSwitchContextProvider.validateField(model).catch(err => {
-                            debug(`[warn] on-change validation of field [${model.ctx.id}] failed: `, err);
-                        });
                     }
                 });
         }

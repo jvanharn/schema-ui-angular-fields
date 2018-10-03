@@ -1,7 +1,7 @@
 import { Inject, Optional } from '@angular/core';
 import { MessageBundle } from '@angular/compiler';
 import { Subject, Subscription, timer } from 'rxjs';
-import { debounce } from 'rxjs/operators';
+import { debounce, map, bufferTime, filter } from 'rxjs/operators';
 import {
     IRelatableSchemaAgent,
     EndpointSchemaAgent,
@@ -16,6 +16,7 @@ import {
     fixJsonPointerPath,
     JsonSchema,
     ValidationResult,
+    IdentityValues,
 } from 'json-schema-services';
 
 import { FormField, PatchableFormField } from './models/form-field';
@@ -71,11 +72,21 @@ export class FieldContextProvider {
     }
     private _visible: string[];
 
+    /**
+     * Setting to control whether when all fields are rendered we need to validate all fields.
+     */
+    public validateOnceReady: boolean = true;
+
 //#region RX Event Emitters
     /**
      * An observable that emits the context of a field when it's value has changed.
      */
     public fieldChanged$: Subject<FormFieldViewModel<FormField<any>>> = new Subject();
+
+    /**
+     * An observable that emits the context of a fieldset when a field within it has it's value changed.
+     */
+    public fieldsetChanged$: Subject<FormFieldViewModel<FormField<any>>> = new Subject();
 
     /**
      * An observable that emits once any field instance in the form is ready, by the field-component-swap directive.
@@ -96,6 +107,16 @@ export class FieldContextProvider {
      * Subscription that listens to fields that become ready.
      */
     private fieldReadySubscription: Subscription;
+
+    /**
+     * Subscription that listens to fields that become ready.
+     */
+    private fieldValidationSubscription: Subscription;
+
+    /**
+     * Subscription that listens to fields that become ready.
+     */
+    private fieldsetValidationSubscription: Subscription;
 //#endregion
 
 //region Form-mode check methods
@@ -196,12 +217,20 @@ export class FieldContextProvider {
         this._visible = this.extract(f => f.ctx.pointer);
         this.validator = validators.getValidator(schema);
 
+        // Emit form ready events.
         var lastReadyState: boolean = false;
         this.fieldReadySubscription = this.fieldReady$.pipe(debounce(() => timer(50))).subscribe(() => {
             var isReady = this.isReady();
             if (isReady && !lastReadyState) {
                 this.ready$.next(lastReadyState = true);
                 debug(`form by id "${this.schema.schemaId}${this.schema.propertyPrefix}" is ready`);
+
+                if (this.validateOnceReady) {
+                    debug('doing initial validation because validateOnceReady = true..');
+                    this.validate()
+                        .then(results => debug(`initial validation run yielded ${results.length} errors`, results))
+                        .catch(err => debug('initial validation run failed!', err));
+                }
             }
             else if (!isReady && !!lastReadyState) {
                 this.ready$.next(lastReadyState = false);
@@ -210,6 +239,25 @@ export class FieldContextProvider {
                     this.extract(x => this.isFieldReady(x) ? null : x.ctx.pointer).filter(x => x != null));
             }
         });
+
+        // Validate fields on change.
+        this.fieldValidationSubscription = this.fieldChanged$.subscribe(field => {
+            this.validateField(field).catch(err => {
+                debug(`[warn] on-change validation of field [${field.ctx.id}] failed: `, err);
+            });
+        });
+
+        // Validate whole fieldsets when one of it's fields changes.
+        this.fieldsetValidationSubscription = this.fieldChanged$
+            .pipe(
+                map(field => this.sets.find(x => x.fields.indexOf(field) > -1)),
+                bufferTime(2000),
+                filter(x => x.length > 0))
+            .subscribe(sets =>
+                _.uniq(sets).filter(x => x != null).forEach(set =>
+                    this.validateFieldset(set, false).catch(err => {
+                        debug(`[warn] on-change validation of fieldset [${set.id}] failed: `, err);
+                    })));
     }
 
 //region Schema Mapping
@@ -299,6 +347,12 @@ export class FieldContextProvider {
         this.each(field => field.instance = void 0);
         if (!this.fieldReadySubscription.closed) {
             this.fieldReadySubscription.unsubscribe();
+        }
+        if (!this.fieldValidationSubscription.closed) {
+            this.fieldValidationSubscription.unsubscribe();
+        }
+        if (!this.fieldsetValidationSubscription.closed) {
+            this.fieldsetValidationSubscription.unsubscribe();
         }
         this.ready$.complete();
         this.fieldReady$.complete();
@@ -612,10 +666,11 @@ export class FieldContextProvider {
      * Validate a single fieldset.
      *
      * @param set The set to validate.
+     * @param validateFields Whether or not to revalidate fields if they were found to be valid last time.
      */
     public validateFieldset(set: FormFieldSet, validateFields: boolean = true): Promise<FormFieldsetFieldValidationResult[]> {
         var fields: Promise<FormFieldsetFieldValidationResult[]>;
-        if (validateFields) {
+        if (validateFields || set.validation.valid == false) {
             fields = Promise.all(_.map(set.fields, field => this.validateFieldsetField(field)));
         }
         else {
@@ -663,16 +718,19 @@ export class FieldContextProvider {
     /**
      * Validate a field for a fieldset.
      *
+     * Differs from the regular field validator, as it adds a path to the field that was validated.
+     *
      * @param field The field to validate.
      */
-    private validateFieldsetField(field: FormFieldViewModel<FormField<any>>): FormFieldsetFieldValidationResult {
-        if (this.isFieldAvailable(field)) {
-            return FieldContextProvider.createPristineFieldsetFieldvalidationResult(field.ctx.pointer);
+    private validateFieldsetField(field: FormFieldViewModel<FormField<any>>): Promise<FormFieldsetFieldValidationResult> {
+        if (!this.isFieldReady(field)) {
+            return Promise.resolve(FieldContextProvider.createPristineFieldsetFieldvalidationResult(field.ctx.pointer));
         }
 
-        var result: FormFieldsetFieldValidationResult = this.validateField(field) as any;
-        result.pointer = field.ctx.pointer;
-        return result;
+        return this.validateField(field).then((result: FormFieldsetFieldValidationResult) => {
+            result.pointer = field.ctx.pointer;
+            return result;
+        });
     }
 
     /**
@@ -682,7 +740,7 @@ export class FieldContextProvider {
         return Promise.all(
             (this.sets as FormFieldSet[]).slice() // Make sure we sort a copy of the original.
                 .sort((a, b) => a.pointer === '/' ? 1 : (b.pointer === '/' ? -1 : 0)) // Make sure the default fieldset is always checked last.
-                .map(set => this.validateFieldset(set)) // Validate each fieldset.
+                .map(set => this.validateFieldset(set, true)) // Validate each fieldset.
         ).then(results => {
             // Make sure there are no duplicated errors in the root set.
             for (var set of this.sets) {
@@ -847,7 +905,7 @@ export class FieldContextProvider {
      */
     public isFieldAvailable(field: FormFieldViewModel<any>): boolean {
         // undefined = busy initializing by directive
-        // null = Field was not avialable, cant be initialized.
+        // null = Field-type was not available, can't be initialized.
         // FormField<any> = Field is initialized, and can be considered loaded when "loading" is set to a falsy value.
         return field.instance === null || (field.instance !== null && field.instance !== void 0 && field.instance.loading !== true);
     }
@@ -955,8 +1013,7 @@ export class FieldContextProvider {
      * Translate the error given back by the validation backends.
      */
     private translateValidationMessage(mess: ValidationError): string {
-        //@todo implement translation for error messages
-        return mess.message;
+        return this.translateToken(['validation_message_' + _.snakeCase(String(mess.code)).toLowerCase()], mess.message, mess.params);
     }
 
     /**
@@ -964,7 +1021,7 @@ export class FieldContextProvider {
      *
      * @param tokens
      */
-    private translateToken(tokens: string[], defaultValue?: string): string {
+    private translateToken(tokens: string[], defaultValue?: string, params?: IdentityValues): string {
         if (this.translateMessageOrDefault) {
             return this.translateMessageOrDefault(tokens, defaultValue);
         }
@@ -1379,4 +1436,4 @@ export interface FormFieldViewModel<T extends FormField<any>> {
 
 type initialFieldValueFetcher = (field: ExtendedFieldDescriptor) => any;
 
-export type translateMessageOrDefaultFunc = (tokens: string[], placeholder?: string) => string;
+export type translateMessageOrDefaultFunc = (tokens: string[], placeholder?: string, params?: IdentityValues) => string;
