@@ -102,7 +102,7 @@ export class CachedDataProvider {
                         return pointer.get(item, pntr) || [];
                     }
                     catch (e) {
-                        debug(`[warn] unable to get the data for pointer "${pointer}"`);
+                        debug(`[warn] unable to get the data for pointer "${pntr}"`);
                     }
                     return [];
                 });
