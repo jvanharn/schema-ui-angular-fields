@@ -98,12 +98,19 @@ export class CachedDataProvider {
             return agent
                 .read<any>(context, linkName)
                 .then(item => {
-                    try {
-                        return pointer.get(item, pntr) || [];
+                    if (typeof pntr === 'string' && pntr.length > 1) {
+                        try {
+                            return pointer.get(item, pntr) || [];
+                        }
+                        catch (e) {
+                            debug(`[warn] unable to get the data for pointer "${pntr}"`);
+                        }
                     }
-                    catch (e) {
-                        debug(`[warn] unable to get the data for pointer "${pntr}"`);
+                    else if (Array.isArray(item)) {
+                        return item;
                     }
+
+                    debug(`[warn] the item retrieved from link ${linkName} is not an array! returning empty set.`);
                     return [];
                 });
         }
