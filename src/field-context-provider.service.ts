@@ -1259,41 +1259,37 @@ export class FieldContextProvider {
      * Create an field context provider form an schema and this instance's initial values.
      *
      * @param schema Schema navigator to create the child for.
-     * @param pointer The json-pointer pointing to the field that the schema is created for.
+     * @param pntr The json-pointer pointing to the field that the schema is created for.
      */
-    protected createChildFromNavigator(schema: SchemaNavigator, pointer: string): FieldContextProvider {
+    protected createChildFromNavigator(schema: SchemaNavigator, pntr: string): FieldContextProvider {
         // Get all relevant information for the given pointer field or it's parent, and base the mode on it.
-        var field: FormFieldViewModel<FormField<any>> = this.findByPointer(pointer),
+        var field: FormFieldViewModel<FormField<any>> = this.findByPointer(pntr),
             isMultiDef = false,
             selector: string;
         if (field == null) {
-            var spliced = pointer.split('/');
+            var spliced = pntr.split('/');
             selector = spliced.pop();
             field = this.findByPointer(spliced.join('/'));
             isMultiDef = true;
 
             if (field == null) {
-                throw new Error(`The given field "${pointer}" does not exist on this form! Cannot create a child form context for it.`);
+                throw new Error(`The given field "${pntr}" does not exist on this form! Cannot create a child form context for it.`);
             }
         }
 
-        // Determine the mode to create it in
-        var mode = this.mode;
-        if (field.ctx.readonly) { // The field is readonly, and therefore all it's children will be too.
-            mode = 'view';
-        }
-        else if (isMultiDef && !_.some(!!field.ctx.initialValue ? field.ctx.initialValue : field.ctx.value, (v, k) => String(k) === selector)) { // The key doesn't yet exist, and is therefore new.
-            mode = 'create';
-        }
+        // Determine initial values.
+        var initialValues: any = this.initialValues;
 
         // Determine if it is a newly rooted schema (outlined), or if it is a sub-schema of this form's schema (inlined)
         var outlined = this.schema.original.id !== schema.original.id || schema.propertyPrefix === '/';
 
         // When the entity is outlined, use the field value as initial values, otherwise, the initial values of this form
-        var initialValues = this.initialValues;
         if (outlined) {
             if (field.instance != null) {
                 initialValues = field.instance.value;
+            }
+            else if (field.ctx.value) {
+                initialValues = field.ctx.value;
             }
             else {
                 initialValues = field.ctx.initialValue;
@@ -1303,18 +1299,33 @@ export class FieldContextProvider {
                 initialValues = initialValues[selector];
             }
         }
+        else if (!this.isLoading()) {
+            initialValues = this.getData();
+        }
+
+        // Determine the mode to create it in
+        var mode = this.mode;
+        if (field.ctx.readonly) { // The field is readonly, and therefore all it's children will be too.
+            mode = 'view';
+        }
+        else if (isMultiDef && (
+            (!outlined && !pointer.has(initialValues, pntr)) ||
+            (!!outlined && !pointer.has(this.initialValues, pntr))
+        )) { // The key doesn't yet exist, and is therefore new.
+            mode = 'create';
+        }
 
         // Create the child context
         var ctx = new FieldContextProvider(schema, this.validators, mode, initialValues, this, this.translateMessageOrDefault, this.messages);
 
         // Copy the visible properties that are relevant.
         if (!_.isEmpty(this.visible)) {
-            var applicable = this.visible.filter(x => x.startsWith(pointer));
-            if (schema.propertyPrefix === pointer + '/') {
+            var applicable = this.visible.filter(x => x.startsWith(pntr));
+            if (schema.propertyPrefix === pntr + '/') {
                 ctx.visible = applicable;
             }
             else {
-                ctx.visible = applicable.map(x => x.substr(pointer.length));
+                ctx.visible = applicable.map(x => x.substr(pntr.length));
             }
         }
 
