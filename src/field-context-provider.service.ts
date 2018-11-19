@@ -86,7 +86,7 @@ export class FieldContextProvider {
     /**
      * An observable that emits the context of a fieldset when a field within it has it's value changed.
      */
-    public fieldsetChanged$: Subject<FormFieldViewModel<FormField<any>>> = new Subject();
+    public fieldsetChanged$: Subject<FormFieldSet> = new Subject();
 
     /**
      * An observable that emits once any field instance in the form is ready, by the field-component-swap directive.
@@ -109,12 +109,17 @@ export class FieldContextProvider {
     private fieldReadySubscription: Subscription;
 
     /**
-     * Subscription that listens to fields that become ready.
+     * Subscription that listens to field-values changing, in order to update their validation status.
      */
     private fieldValidationSubscription: Subscription;
 
     /**
-     * Subscription that listens to fields that become ready.
+     * Subscription that listens to field-values changing, in order to notify fieldsetChanged$ of the change.
+     */
+    private fieldsetRedirectionSubscription: Subscription;
+
+    /**
+     * Subscription that listens to fieldsets that have one one their fields change values, in order to update their validation status.
      */
     private fieldsetValidationSubscription: Subscription;
 //#endregion
@@ -247,17 +252,20 @@ export class FieldContextProvider {
             });
         });
 
-        // Validate whole fieldsets when one of it's fields changes.
-        this.fieldsetValidationSubscription = this.fieldChanged$
+        // Redirect and buffer field change events to the fieldset event emitter.
+        this.fieldsetRedirectionSubscription = this.fieldChanged$
             .pipe(
                 map(field => this.sets.find(x => x.fields.indexOf(field) > -1)),
                 bufferTime(2000),
                 filter(x => x.length > 0))
-            .subscribe(sets =>
-                _.uniq(sets).filter(x => x != null).forEach(set =>
-                    this.validateFieldset(set, false).catch(err => {
-                        debug(`[warn] on-change validation of fieldset [${set.id}] failed: `, err);
-                    })));
+            .subscribe(sets => _.uniq(sets).filter(x => x != null).forEach(set => this.fieldsetChanged$.next(set)))
+
+        // Validate whole fieldsets when one of it's fields changes.
+        this.fieldsetValidationSubscription = this.fieldsetChanged$
+            .subscribe(set =>
+                this.validateFieldset(set, false).catch(err => {
+                    debug(`[warn] on-change validation of fieldset [${set.id}] failed: `, err);
+                }));
     }
 
 //region Schema Mapping
@@ -350,6 +358,9 @@ export class FieldContextProvider {
         }
         if (!this.fieldValidationSubscription.closed) {
             this.fieldValidationSubscription.unsubscribe();
+        }
+        if (!this.fieldsetRedirectionSubscription.closed) {
+            this.fieldsetRedirectionSubscription.unsubscribe();
         }
         if (!this.fieldsetValidationSubscription.closed) {
             this.fieldsetValidationSubscription.unsubscribe();
@@ -952,7 +963,11 @@ export class FieldContextProvider {
      * Translate the title of a fieldset.
      */
     private translateFieldsetLabel(fieldsetId: string): string {
-        return this.translateToken([String(fieldsetId).toLowerCase() + '_fieldset_title']);
+        const tokens = [String(fieldsetId).toLowerCase() + '_fieldset_title'];
+        if (fieldsetId === defaultFieldsetId) {
+            tokens.push('entity_' + this.schema.entity + '_name');
+        }
+        return this.translateToken(tokens);
     }
 
     /**
