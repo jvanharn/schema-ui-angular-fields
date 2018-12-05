@@ -17,6 +17,7 @@ import {
     JsonSchema,
     ValidationResult,
     IdentityValues,
+    ISchemaCache,
 } from 'json-schema-services';
 
 import { FormField, PatchableFormField } from './models/form-field';
@@ -211,6 +212,7 @@ export class FieldContextProvider {
      */
     public constructor(
         @Inject(SchemaNavigator) public schema: SchemaNavigator,
+        @Inject('ISchemaCache') public cache: ISchemaCache,
         @Inject(ValidatorCache) public validators: ValidatorCache,
         @Inject('formMode') @Optional() public readonly mode: FormModes = 'edit',
         @Inject('formInitialValues') @Optional() public readonly initialValues?: any,
@@ -379,7 +381,7 @@ export class FieldContextProvider {
      * @return Cloned field context provider.
      */
     public clone(initialValues?: any, mode: FormModes = this.mode): FieldContextProvider {
-        var sibbling = new FieldContextProvider(this.schema, this.validators, mode, initialValues, this.parent, this.translateMessageOrDefault, this.messages);
+        var sibbling = new FieldContextProvider(this.schema, this.cache, this.validators, mode, initialValues, this.parent, this.translateMessageOrDefault, this.messages);
         sibbling.visible = this.visible;
         return sibbling;
     }
@@ -1316,7 +1318,7 @@ export class FieldContextProvider {
         }
 
         // Create the child context
-        var ctx = new FieldContextProvider(schema, this.validators, mode, initialValues, this, this.translateMessageOrDefault, this.messages);
+        var ctx = new FieldContextProvider(schema, this.cache, this.validators, mode, initialValues, this, this.translateMessageOrDefault, this.messages);
 
         // Copy the visible properties that are relevant.
         if (!_.isEmpty(this.visible)) {
@@ -1366,16 +1368,16 @@ export class FieldContextProvider {
                 console.warn(`PRE-ALPHA FUNCTIONALITY! having multiple schema definitions, with one external ref (especially if it is not embedded in the same schema, will most likely fail spectacularly.`);
             }
 
-            var schema = this.validators.cache.getSchema(sub[0].$ref);
+            var schema = this.cache.getSchema(sub[0].$ref);
             if (schema == null) {
                 throw new Error(`Unable to find the schema with id "${sub[0].$ref}" for child-context with pointer "${pointer}".`);
             }
 
-            return this.createChildFromNavigator(new SchemaNavigator(schema, void 0, x => this.validators.cache.getSchema(x)), pnt);
+            return this.createChildFromNavigator(new SchemaNavigator(schema, void 0, x => this.cache.getSchema(x)), pnt);
         }
 
         // Create the child if it is embedded.
-        return this.createChildFromNavigator(new SchemaNavigator(this.schema.original, pnt, x => this.validators.cache.getSchema(x)), pnt);
+        return this.createChildFromNavigator(new SchemaNavigator(this.schema.original, pnt, x => this.cache.getSchema(x)), pnt);
     }
 
     /**
@@ -1389,9 +1391,9 @@ export class FieldContextProvider {
         parent?: FieldContextProvider
     ): FieldContextProvider {
         if (trans instanceof MessageBundle) {
-            return new FieldContextProvider(agent.schema, agent.validators, mode, initialValues, parent, void 0, trans as MessageBundle);
+            return new FieldContextProvider(agent.schema, agent['cache'], agent.validators, mode, initialValues, parent, void 0, trans as MessageBundle);
         }
-        return new FieldContextProvider(agent.schema, agent.validators, mode, initialValues, parent, trans as translateMessageOrDefaultFunc);
+        return new FieldContextProvider(agent.schema, agent['cache'], agent.validators, mode, initialValues, parent, trans as translateMessageOrDefaultFunc);
     }
 }
 
