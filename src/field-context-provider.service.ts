@@ -219,6 +219,7 @@ export class FieldContextProvider {
         @Inject('parentFieldContext') @Optional() public readonly parent?: FieldContextProvider,
         @Inject('translateMessageOrDefault') @Optional() private translateMessageOrDefault?: translateMessageOrDefaultFunc,
         @Inject(MessageBundle) @Optional() private messages?: MessageBundle,
+        @Inject('readonlyFields') @Optional() private readonlyFields?: string[],
     ) {
         this.sets = this.mapped = this._mapSchemaToFieldsets(initialValues);
         this._visible = this.extract(f => f.ctx.pointer);
@@ -296,7 +297,7 @@ export class FieldContextProvider {
                 name: field.name,
                 pointer: field.pointer,
                 required: field.isRequired,
-                readonly: this.isViewMode() || this.isFieldParentIdentifier(field),
+                readonly: this.isReadonlyField(field),
                 initialValue: this.isCreateMode() || _.isEmpty(this.initialValues) ? this.getFieldDefaultValue(field) : initialValue,
                 value: initialValue,
                 meta: field
@@ -453,6 +454,23 @@ export class FieldContextProvider {
      */
     public isFieldParentIdentifier(field: ExtendedFieldDescriptor): boolean {
         return this.parent && this.isCreateMode() && this.parent.schema.identityProperties.indexOf(field.name) > -1 && field.name !== 'name' && field.name !== 'internalname';
+    }
+
+    /**
+     * Check whether or not the field is readonly.
+     *
+     * @param field
+     */
+    public isReadonlyField(field: ExtendedFieldDescriptor): boolean {
+        if (this.isViewMode() || this.isFieldParentIdentifier(field)) {
+            return true;
+        }
+
+        if (Array.isArray(this.readonlyFields)) {
+            return this.readonlyFields.indexOf(field.pointer) > -1;
+        }
+
+        return false;
     }
 
     /**
@@ -1388,12 +1406,13 @@ export class FieldContextProvider {
         trans: MessageBundle | translateMessageOrDefaultFunc,
         mode: FormModes = 'edit',
         initialValues?: any,
-        parent?: FieldContextProvider
+        parent?: FieldContextProvider,
+        readonlyFields?: string[],
     ): FieldContextProvider {
         if (trans instanceof MessageBundle) {
-            return new FieldContextProvider(agent.schema, agent['cache'], agent.validators, mode, initialValues, parent, void 0, trans as MessageBundle);
+            return new FieldContextProvider(agent.schema, agent['cache'], agent.validators, mode, initialValues, parent, void 0, trans as MessageBundle, readonlyFields);
         }
-        return new FieldContextProvider(agent.schema, agent['cache'], agent.validators, mode, initialValues, parent, trans as translateMessageOrDefaultFunc);
+        return new FieldContextProvider(agent.schema, agent['cache'], agent.validators, mode, initialValues, parent, trans as translateMessageOrDefaultFunc, void 0, readonlyFields);
     }
 }
 
