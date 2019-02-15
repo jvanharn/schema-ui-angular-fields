@@ -26,8 +26,8 @@
     "@angular/core": "^6.0",
     "@types/json-pointer": "^1.0.30",
     "@types/lodash": "^4.14.119",
-    "ng-packagr": "^4.4.5",
-    "rxjs": "^6.1.0",
+    "ng-packagr": "^4.7.0",
+    "rxjs": "~6.3.0",
     "typescript": "2.8.x",
     "zone.js": "^0.8.26"
   },
