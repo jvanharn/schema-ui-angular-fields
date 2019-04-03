@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { debug } from 'util';
+
+import debuglib from 'debug';
+const debug = debuglib('schema-ui:linked-data-cache');
 
 /**
  * Caches any linked data that was retrieved for any form, based on it's link descriptor.
@@ -39,10 +41,11 @@ export class LinkedDataCache {
      *
      * @param schemaId
      * @param link
+     * @param targetSchemaId
      */
-    public fetch(schemaId: string, link: string): Promise<any> {
+    public fetch(schemaId: string, link: string, targetSchemaId?: string): Promise<any> {
         for (var item of this.cache) {
-            if (item.schemaId === schemaId && item.link === link) {
+            if (item.schemaId === schemaId && item.link === link && (item.targetSchemaId === targetSchemaId || targetSchemaId == null)) {
                 return item.state;
             }
         }

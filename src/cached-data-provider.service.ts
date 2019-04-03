@@ -34,9 +34,15 @@ export class CachedDataProvider {
      * @param forceReload
      */
     public resolveDataThrough(agent: IRelatableSchemaAgent, linkName: string = 'list', pntr: string = '/', context?: any, forceReload?: boolean): Promise<any[]> {
+        var targetSchemaId: string;
+        var link = agent.schema.getLink(linkName);
+        if (link != null && link.targetSchema != null) {
+            targetSchemaId = link.targetSchema.$ref
+        }
+
         if (forceReload !== true) {
             // Fetch state from cache.
-            var state = this.cache.fetch(agent.schema.schemaId, linkName);
+            var state = this.cache.fetch(agent.schema.schemaId, linkName, targetSchemaId);
             if (state !== null) {
                 return state;
             }
@@ -46,12 +52,6 @@ export class CachedDataProvider {
         }
 
         var result = this.resolveDataFromAgent(agent, linkName, pntr, context);
-
-        var targetSchemaId: string;
-        var link = agent.schema.getLink(linkName);
-        if (link != null && link.targetSchema != null) {
-            targetSchemaId = link.targetSchema.$ref
-        }
 
         this.cache.push(agent.schema.schemaId, linkName, targetSchemaId, [], result);
         return result;
@@ -66,6 +66,8 @@ export class CachedDataProvider {
      * @param context The context of the form (e.g. other form values)
      */
     public resolveData(schemaId: string, linkName?: string, pntr: string = '/', context?: any, forceReload?: boolean): Promise<any[]> {
+        debug('[DEPRECATED] resolveData(schemaId, ...) rather not use this method, as it makes it harder to prefetch data.');
+
         if (forceReload !== true) {
             // Fetch state from cache.
             var state = this.cache.fetch(schemaId, linkName);
@@ -78,10 +80,14 @@ export class CachedDataProvider {
         }
 
         var result = this.resolveAgent(schemaId, linkName, context, forceReload)
-            .then(([agent, resolvedThrough]) =>
-                this.resolveDataFromAgent(agent, resolvedThrough ? 'list' : String(linkName), pntr, context));
+        .then(([agent, resolvedThrough]) => {
+            // this is going to overwrite the last value with a more acurate version
+            this.cache.remove(schemaId, linkName);
+            return this.resolveDataThrough(agent, resolvedThrough ? 'list' : linkName, pntr, context, true);
+        });
 
         this.cache.push(schemaId, linkName, void 0, [], result);
+
         return result;
     }
 
