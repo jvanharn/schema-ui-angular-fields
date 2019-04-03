@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { debug } from 'util';
 
 /**
  * Caches any linked data that was retrieved for any form, based on it's link descriptor.
@@ -70,13 +71,15 @@ export class LinkedDataCache {
      * @param schemaId
      */
     public purge(schemaId: string): void {
-        var item: LinkedDataCacheItem;
+        var item: LinkedDataCacheItem, removed = 0;
         for (var i = 0; i < this.cache.length; i++) {
             item = this.cache[i];
             if (item.schemaId === schemaId || item.targetSchemaId === schemaId) {
                 this.cache.splice(i, 1);
+                removed++;
             }
         }
+        debug(`purging cache for schema "${schemaId}" resulted in ${removed} items being invalidated`);
     }
 
     /**
@@ -86,13 +89,15 @@ export class LinkedDataCache {
      * @param properties Properties that have to be referenced by the given link href to qualify it for removal.
      */
     public invalidate(schemaId: string, properties?: string[]): void {
-        var item: LinkedDataCacheItem;
+        var item: LinkedDataCacheItem, removed = 0;
         for (var i = 0; i < this.cache.length; i++) {
             item = this.cache[i];
             if (item.schemaId === schemaId && (properties == null || item.properties.some(x => properties.indexOf(x) >= 0))) {
                 this.cache.splice(i, 1);
+                removed++;
             }
         }
+        debug(`invalidating cache for schema "${schemaId}" resulted in ${removed} items being invalidated`);
     }
 
     /**

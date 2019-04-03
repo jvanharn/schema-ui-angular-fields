@@ -125,7 +125,7 @@ export class FieldContextProvider {
     private fieldsetValidationSubscription: Subscription;
 //#endregion
 
-//region Form-mode check methods
+//#region Form-mode check methods
     /**
      * Whether or not any fields are still loading.
      */
@@ -199,7 +199,7 @@ export class FieldContextProvider {
     public isViewMode(): boolean {
         return this.mode === 'view';
     }
-//endregion
+//#endregion
 
     /**
      * @param schema The schema to generate the form context for.
@@ -271,7 +271,7 @@ export class FieldContextProvider {
                 }));
     }
 
-//region Schema Mapping
+//#region Schema Mapping
     /**
      * Define the field mapper (Is written with the "FormFieldSet" as the "this".)
      */
@@ -339,9 +339,9 @@ export class FieldContextProvider {
             this._mapFieldsetFromSchema(fields, this.schema.entity + '_' + fieldsetId, this.getFieldInitialValue.bind(this)))
                 .sort((a, b) => a.pointer === '/' ? -1 : (b.pointer === '/' ? 1 : 0)); // Make sure the default fieldset is always at the top.
     }
-//endregion
+//#endregion
 
-//region State management
+//#region State management
     /**
      * Reset every initialized instance to it's initial value.
      */
@@ -386,9 +386,9 @@ export class FieldContextProvider {
         sibbling.visible = this.visible;
         return sibbling;
     }
-//endregion
+//#endregion
 
-//region Field (default) values
+//#region Field (default) values
     /**
      * Get the initial value for the given field.
      */
@@ -549,7 +549,7 @@ export class FieldContextProvider {
 
         return this.getFieldInitialValue(field.ctx.meta);
     }
-//endregion
+//#endregion
 
     /**
      * Find the field type for the given form field.
@@ -598,7 +598,7 @@ export class FieldContextProvider {
         return 'LargeTextField';
     }
 
-//region Form validation
+//#region Form validation
     /**
      * Validates the form field asynchronously, and sets the viewmodel's validation result object.
      */
@@ -831,9 +831,9 @@ export class FieldContextProvider {
             level: ValidationLevel.Pristine
         };
     }
-//endregion
+//#endregion
 
-//region Field and fieldset iteration helpers
+//#region Field and fieldset iteration helpers
     /**
      * Find a field by it's property name.
      *
@@ -967,18 +967,18 @@ export class FieldContextProvider {
                 } as FormFieldSet))
             .filter(x => x.fields.length > 0);
     }
-//endregion
+//#endregion
 
-//region Field information helpers
+//#region Field information helpers
     /**
      * Whether or not the field with the given pointer will be rendered/visible to the user.
      */
     public isVisibleField(pointer: string): boolean {
         return (this.visible.indexOf(fixJsonPointerPath(pointer)) > -1);
     }
-//endregion
+//#endregion
 
-//region Field(set) translation
+//#region Field(set) translation
     /**
      * Translate the title of a fieldset.
      */
@@ -1065,9 +1065,9 @@ export class FieldContextProvider {
             return messages.find(z => z.id === tokens.find(x => _.some(messages, y => y.id === x))).description;
         }
     }
-//endregion
+//#endregion
 
-//region Data retrieval methods
+//#region Data retrieval methods
     /**
      * Get the identity of the current item.
      */
@@ -1273,7 +1273,7 @@ export class FieldContextProvider {
         });
         return result;
     }
-//endregion
+//#endregion
 
     /**
      * Create an field context provider form an schema and this instance's initial values.
