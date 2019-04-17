@@ -261,7 +261,9 @@ export class FieldContextProvider {
                 map(field => this.sets.find(x => x.fields.indexOf(field) > -1)),
                 bufferTime(2000),
                 filter(x => x.length > 0))
-            .subscribe(sets => _.uniq(sets).filter(x => x != null).forEach(set => this.fieldsetChanged$.next(set)))
+            .subscribe(sets =>
+                this.augmentRedirectedFieldsetsWithParents(_.uniq(sets).filter(x => x != null))
+                    .forEach(set => this.fieldsetChanged$.next(set)));
 
         // Validate whole fieldsets when one of it's fields changes.
         this.fieldsetValidationSubscription = this.fieldsetChanged$
@@ -599,6 +601,29 @@ export class FieldContextProvider {
     }
 
 //#region Form validation
+    /**
+     * Augment the given list of sets with any parent
+     *
+     * @param sets The sets that have changed values in the target schema.
+     */
+    private augmentRedirectedFieldsetsWithParents(sets: FormFieldSet[]): FormFieldSet[] {
+        // If there are multiple fieldsets, make sure data parents are emitted as wel.
+        if (this.sets.length > 1 && this.sets.length !== sets.length) {
+            var setsLength = sets.length;
+            for (var i = 0; i < setsLength; i++) {
+                for (const orig of this.sets) {
+                    if (sets[i].pointer.startsWith(orig.pointer) && sets.indexOf(orig) === -1) {
+                        // This set is a parent (when looking at the data in the resulting schema) of the changed set,
+                        // ...so it should be considered changed as well
+                        sets.push(orig);
+                    }
+                }
+            }
+            return sets;
+        }
+        return sets;
+    }
+
     /**
      * Validates the form field asynchronously, and sets the viewmodel's validation result object.
      */
