@@ -13,7 +13,7 @@ export class LinkedDataCache {
     /**
      * Cache containing all the data-sets.
      */
-    private readonly cache: LinkedDataCacheItem[] = [];
+    private cache: LinkedDataCacheItem[] = [];
 
     /**
      * Push a state object to the stack for the given schemaId + link-rel combination.
@@ -59,13 +59,9 @@ export class LinkedDataCache {
      * @param link
      */
     public remove(schemaId: string, link: string): void {
-        var item: LinkedDataCacheItem;
-        for (var i = 0; i < this.cache.length; i++) {
-            item = this.cache[i];
-            if (item.schemaId === schemaId && item.link === link) {
-                this.cache.splice(i, 1);
-            }
-        }
+        var removed = this.removeBy(item =>
+            item.schemaId === schemaId && item.link === link);
+        debug(`removing cached data for schema(and link) "${schemaId}"->${link} resulted in ${removed} items being invalidated`);
     }
 
     /**
@@ -74,14 +70,8 @@ export class LinkedDataCache {
      * @param schemaId
      */
     public purge(schemaId: string): void {
-        var item: LinkedDataCacheItem, removed = 0;
-        for (var i = 0; i < this.cache.length; i++) {
-            item = this.cache[i];
-            if (item.schemaId === schemaId || item.targetSchemaId === schemaId) {
-                this.cache.splice(i, 1);
-                removed++;
-            }
-        }
+        var removed = this.removeBy(item =>
+            item.schemaId === schemaId || item.targetSchemaId === schemaId);
         debug(`purging cache for schema "${schemaId}" resulted in ${removed} items being invalidated`);
     }
 
@@ -92,15 +82,30 @@ export class LinkedDataCache {
      * @param properties Properties that have to be referenced by the given link href to qualify it for removal.
      */
     public invalidate(schemaId: string, properties?: string[]): void {
-        var item: LinkedDataCacheItem, removed = 0;
+        var removed = this.removeBy(item =>
+            item.schemaId === schemaId && (properties == null || item.properties.some(x => properties.indexOf(x) >= 0)));
+        debug(`invalidating cache for schema "${schemaId}" resulted in ${removed} items being invalidated`);
+    }
+
+    /**
+     * Remove all cached items for which the selector returns true.
+     *
+     * @param selector The selector that decides what items to remove (true = remove, false = keep).
+     * @returns The number of removed cached items.
+     */
+    private removeBy(selector: (item: LinkedDataCacheItem) => boolean): number {
+        var filtered: LinkedDataCacheItem[] = [];
         for (var i = 0; i < this.cache.length; i++) {
-            item = this.cache[i];
-            if (item.schemaId === schemaId && (properties == null || item.properties.some(x => properties.indexOf(x) >= 0))) {
-                this.cache.splice(i, 1);
-                removed++;
+            if (selector(this.cache[i]) === true) {
+                filtered.push(this.cache[i]);
             }
         }
-        debug(`invalidating cache for schema "${schemaId}" resulted in ${removed} items being invalidated`);
+
+        var removed = this.cache.length - filtered.length;
+        if (removed > 0) {
+            this.cache = filtered;
+        }
+        return removed;
     }
 
     /**
