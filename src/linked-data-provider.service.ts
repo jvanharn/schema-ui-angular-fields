@@ -172,7 +172,7 @@ export class LinkedDataProvider {
         }
 
         return this.mapper = this.provider.resolveAgentChild(this.agent, this.field.meta.field.link as string, context, forceReload, true)
-            .then(([agent]) => new SimplifiedResourceMapper(agent.schema, this.field.meta.field));
+            .then(([agent]) => new SimplifiedResourceMapper(this.field.meta.field, agent.schema));
     }
 
     /**

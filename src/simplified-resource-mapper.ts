@@ -1,14 +1,25 @@
-import { SchemaNavigator, ExtendedFieldDescriptor, IdentityValue, SchemaFieldDescriptor } from 'json-schema-services';
+import { SchemaNavigator, IdentityValue, SchemaFieldDescriptor } from 'json-schema-services';
 import { SimplifiedLinkedResource } from './simplified-resource';
 
 import debuglib from 'debug';
 const debug = debuglib('schema-ui:simplified-resource-mapper');
 
+/**
+ * Class that simplifies a schema into a simplified object with the same properties for commonly used values in an UI.
+ */
 export class SimplifiedResourceMapper {
+    /**
+     * @param field The form field descriptor of the field that refers to the external resource.
+     * @param schema The targetted resource schema (by the field given below), so NOT of the schema the field resides in.
+     */
     public constructor(
-        private schema: SchemaNavigator,
         private field: SchemaFieldDescriptor,
-    ) { }
+        private schema?: SchemaNavigator,
+    ) {
+        if (!(schema instanceof SchemaNavigator)) {
+            throw new Error('SimplifiedResourceMapper.constructor; The given schema is not a SchemaNavigator!');
+        }
+    }
 
     /**
      * Transform the given data to a simplified resource.
@@ -37,6 +48,12 @@ export class SimplifiedResourceMapper {
             });
     }
 
+    /**
+     * Get the display name of the given item.
+     *
+     * @param item The item to get the displayed name for.
+     * @param items A complete list of all other items, used to find the parent of the current item.
+     */
     public getDisplayName(item: any, items: any[] = [item]): string {
         if (this.field.data == null || this.field.data.label == null) {
             return item['name'] || item['displayName'] || item['internalName'] || item['entity'];
@@ -47,6 +64,13 @@ export class SimplifiedResourceMapper {
         return item[this.field.data.label];
     }
 
+    /**
+     * Fetch the display name for the parent item of the same type for the given item.
+     *
+     * @param items
+     * @param item
+     * @param label
+     */
     public getDisplayNameForParent(items: any[], item: any, label: string): string {
         if (item[this.field.data.parent] != null) {
             var parent = (items || []).find(x => x[this.field.data.value] === item[this.field.data.parent]);
@@ -60,6 +84,11 @@ export class SimplifiedResourceMapper {
         return label;
     }
 
+    /**
+     * Get the description for the given item.
+     *
+     * @param item
+     */
     public getDescription(item: any): string {
         if (this.field.data == null || this.field.data.description == null) {
             return item['description'];
@@ -67,6 +96,11 @@ export class SimplifiedResourceMapper {
         return item[this.field.data.description];
     }
 
+    /**
+     * Get an numeric ordering indicator for the given item.
+     *
+     * @param item
+     */
     public getOrder(item: any): number {
         if (this.field.data == null || this.field.data.order == null) {
             return parseInt(item['order'], 10) || 0;
@@ -74,8 +108,13 @@ export class SimplifiedResourceMapper {
         return parseInt(item[this.field.data.order], 10);
     }
 
+    /**
+     * Get the referenced primary key identity value for the given item.
+     *
+     * @param item
+     */
     public getIdentityValue(item: any): IdentityValue {
-        if (this.field.data == null || this.field.data.label == null) {
+        if (this.field.data == null || this.field.data.value == null) {
             try {
                 // This will only work with listed properties (not with sub properties)
                 return this.schema.getIdentityValue(item);
@@ -88,6 +127,11 @@ export class SimplifiedResourceMapper {
         return item[this.field.data.value];
     }
 
+    /**
+     * Get the identity key for the given parent item.
+     *
+     * @param item
+     */
     public getParentValue(item: any): IdentityValue {
         if (this.field.data == null || this.field.data.parent == null) {
             return item['parent'];

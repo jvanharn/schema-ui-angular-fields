@@ -96,7 +96,7 @@ export class LinkedDataCache {
     private removeBy(selector: (item: LinkedDataCacheItem) => boolean): number {
         var filtered: LinkedDataCacheItem[] = [];
         for (var i = 0; i < this.cache.length; i++) {
-            if (selector(this.cache[i]) === true) {
+            if (selector(this.cache[i]) !== true) {
                 filtered.push(this.cache[i]);
             }
         }
