@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@angular/core';
-import { IRelatableSchemaAgent } from 'json-schema-services';
+import { IRelatableSchemaAgent, SchemaNavigator } from 'json-schema-services';
 
 import { LinkedDataCache } from './linked-data-cache.service';
 
@@ -36,37 +36,89 @@ export class CachedDataProvider {
     public resolveDataThrough(agent: IRelatableSchemaAgent, linkName: string = 'list', pntr: string = '/', context?: any, forceReload?: boolean): Promise<any[]> {
         var targetSchemaId: string;
         var link = agent.schema.getLink(linkName);
-        if (link != null && link.targetSchema != null) {
+        if (link == null) {
+            return Promise.reject(new Error(`The given link by name "${linkName}" does not exist on schema "${agent.schema.schemaId}"!`));
+        }
+        if (link.targetSchema != null) {
             targetSchemaId = link.targetSchema.$ref
         }
 
         if (forceReload !== true) {
             // Fetch state from cache.
-            var state = this.cache.fetch(agent.schema.schemaId, linkName, targetSchemaId);
+            var state = this.cache.fetch(agent.schema.schemaId, link.rel, targetSchemaId);
             if (state !== null) {
                 return state;
             }
         }
         else {
-            this.cache.invalidate(agent.schema.schemaId);
+            this.cache.remove(agent.schema.schemaId, link.rel);
         }
 
+        // Resolve data as promise
         var result = this.resolveDataFromAgent(agent, linkName, pntr, context);
 
-        this.cache.push(agent.schema.schemaId, linkName, targetSchemaId, [], result);
+        // Check what pointers it refers to in the context, and save to cache
+        var pointers = Object.values(agent.schema.getLinkUriTemplatePointers(link));
+        this.cache.push(agent.schema.schemaId, linkName, targetSchemaId, pointers, result);
+
+        return result;
+    }
+
+    /**
+     * Resolve linked data through a compatible agent, and check a data-cache before doing so to to preserve bandwidth.
+     *
+     * @see resolveDataThrough Using the resolveDataThrough method is preferred over this one, since it prevents double checks!
+     *
+     * @param schema The schema to execute on.
+     * @param linkName The name of the link to execute.
+     * @param pntr When the link is a read-* link, provide the inlined array that you want to return.
+     * @param context The context of the form (e.g. other form values)
+     */
+    public resolveDataWithSchema(schema: SchemaNavigator, linkName?: string, pntr: string = '/', context?: any, forceReload?: boolean): Promise<any[]> {
+        var targetSchemaId: string;
+        var link = schema.getLink(linkName);
+        if (link == null) {
+            return Promise.reject(new Error(`The given link by name "${linkName}" does not exist on schema "${schema.schemaId}"!`));
+        }
+        if (link.targetSchema != null) {
+            targetSchemaId = link.targetSchema.$ref
+        }
+
+        if (forceReload !== true) {
+            // Fetch state from cache.
+            var state = this.cache.fetch(schema.schemaId, link.rel, targetSchemaId);
+            if (state !== null) {
+                return state;
+            }
+        }
+        else {
+            this.cache.remove(schema.schemaId, link.rel);
+        }
+
+        var result = this.resolveAgent(schema.schemaId, linkName, context, forceReload).then(([agent, resolvedThrough]) => {
+            // this is going to overwrite the last value with a more acurate version
+            this.cache.remove(schema.schemaId, linkName);
+            return this.resolveDataThrough(agent, resolvedThrough ? 'list' : linkName, pntr, context, forceReload);
+        });
+
+        // Check what pointers it refers to in the context, and save to cache
+        var pointers = Object.values(schema.getLinkUriTemplatePointers(link));
+        this.cache.push(schema.schemaId, linkName, targetSchemaId, pointers, result);
+
         return result;
     }
 
     /**
      * Get an linked resource as simplified data.
      *
+     * @deprecated Use resolveDataThrough instead if you have an agent, or use resolveDataWithSchema if you have a SchemaNavigator.
      * @param schemaId The schema id of the schema to execute on.
      * @param linkName The name of the link to execute.
      * @param pntr When the link is a read-* link, provide the inlined array that you want to return.
      * @param context The context of the form (e.g. other form values)
      */
     public resolveData(schemaId: string, linkName?: string, pntr: string = '/', context?: any, forceReload?: boolean): Promise<any[]> {
-        debug('[DEPRECATED] resolveData(schemaId, ...) rather not use this method, as it makes it harder to prefetch data.');
+        debug('[DEPRECATED] resolveData(schemaId, ...) rather not use this method, as it makes it harder to prefetch data. Use resolveDataThrough or resolveDataWithSchema instead.');
 
         if (forceReload !== true) {
             // Fetch state from cache.
@@ -79,13 +131,13 @@ export class CachedDataProvider {
             this.cache.invalidate(schemaId);
         }
 
-        var result = this.resolveAgent(schemaId, linkName, context, forceReload)
-        .then(([agent, resolvedThrough]) => {
+        var result = this.resolveAgent(schemaId, linkName, context, forceReload).then(([agent, resolvedThrough]) => {
             // this is going to overwrite the last value with a more acurate version
             this.cache.remove(schemaId, linkName);
-            return this.resolveDataThrough(agent, resolvedThrough ? 'list' : linkName, pntr, context, true);
+            return this.resolveDataThrough(agent, resolvedThrough ? 'list' : linkName, pntr, context, forceReload);
         });
 
+        // Since we do not have a schema, we have no idea what all these parameters are, thats why this method is now DEPRECATED
         this.cache.push(schemaId, linkName, void 0, [], result);
 
         return result;
@@ -147,7 +199,7 @@ export class CachedDataProvider {
     }
 
     /**
-     * Resolve the child
+     * Resolve the child agent of the given agent link (if it is reffed).
      *
      * @param agent
      * @param linkName
@@ -169,10 +221,9 @@ export class CachedDataProvider {
         }
 
         if (forceResolveChild !== true) {
-            var link = agent.schema.getLink(linkName);
-
             // Check whether or not the requested schema can be resolved through (give the original schema) or whether it must be executed using the link.
-            if (link.href.indexOf('{') >= 0 || link.href.indexOf('?') >= 0) {
+            var link = agent.schema.getLink(linkName);
+            if (agent.schema.hasLinkUriTemplatePointers(link)) {
                 return Promise.resolve([agent, false] as [IRelatableSchemaAgent, boolean]);
             }
         }
@@ -182,7 +233,7 @@ export class CachedDataProvider {
     }
 
     /**
-     * Get the linked agent.
+     * (Forcably) Resolve the given link untill there are no more $ref's to resolve.
      *
      * @param schemaId
      * @param linkName
