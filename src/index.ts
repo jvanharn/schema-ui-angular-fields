@@ -14,5 +14,6 @@ export * from './field-context-provider.service';
 export * from './linked-data-cache.service';
 export * from './cached-data-provider.service';
 export * from './linked-data-provider.service';
+export * from './loosely-linked-data-provider.service';
 export * from './field-component-swap.directive';
 export * from './schema-fields.module';

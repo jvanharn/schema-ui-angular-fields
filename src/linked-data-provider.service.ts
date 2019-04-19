@@ -1,10 +1,9 @@
 import { Injectable, Inject } from '@angular/core';
 import { from, concat, of, merge, Observable, throwError } from 'rxjs';
 import { concatMap, debounceTime, map } from 'rxjs/operators';
-import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, SchemaNavigator, JsonSchema, ExtendedFieldDescriptor, SchemaHyperlinkDescriptor } from 'json-schema-services';
+import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, JsonSchema, SchemaHyperlinkDescriptor } from 'json-schema-services';
 
 import { FieldContextProvider } from './field-context-provider.service';
-import { FormField } from './models/form-field';
 import { fieldComponentContextToken, FieldComponentContext } from './models/form-field-context';
 import { CachedDataProvider } from './cached-data-provider.service';
 import { SimplifiedLinkedResource } from './simplified-resource';

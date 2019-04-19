@@ -1,4 +1,4 @@
-import { SchemaNavigator, IdentityValue, SchemaFieldDescriptor } from 'json-schema-services';
+import { SchemaNavigator, IdentityValue, SchemaFieldDescriptor, tryPointerGet } from 'json-schema-services';
 import { SimplifiedLinkedResource } from './simplified-resource';
 
 import debuglib from 'debug';
@@ -114,17 +114,21 @@ export class SimplifiedResourceMapper {
      * @param item
      */
     public getIdentityValue(item: any): IdentityValue {
-        if (this.field.data == null || this.field.data.value == null) {
-            try {
-                // This will only work with listed properties (not with sub properties)
-                return this.schema.getIdentityValue(item);
-            }
-            catch (e) {
-                debug(`[warn] I cannot fetch the identity property for ${this.schema.entity}, please set it manually using the "value" data-property!`);
-                return item['id'] || item['name'] || item['entity'];
-            }
+        if (this.field.data != null && this.field.data.value != null) {
+            return item[this.field.data.value];
         }
-        return item[this.field.data.value];
+        if (this.field.targetIdentity != null && typeof this.field.targetIdentity === 'string' && this.field.targetIdentity.length > 1) {
+            return tryPointerGet(item, this.field.targetIdentity.startsWith('/') ? this.field.targetIdentity : '/' + this.field.targetIdentity);
+        }
+
+        try {
+            // This will only work with listed properties (not with sub properties)
+            return this.schema.getIdentityValue(item);
+        }
+        catch (e) {
+            debug(`[warn] I cannot fetch the identity property for ${this.schema.entity}, please set it manually using the "value" data-property!`);
+            return item['id'] || item['name'] || item['entity'];
+        }
     }
 
     /**

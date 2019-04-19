@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@angular/core';
-import { IRelatableSchemaAgent, SchemaNavigator } from 'json-schema-services';
+import { IRelatableSchemaAgent, ISchemaAgent, SchemaNavigator } from 'json-schema-services';
 
 import { LinkedDataCache } from './linked-data-cache.service';
 
@@ -33,7 +33,7 @@ export class CachedDataProvider {
      * @param context
      * @param forceReload
      */
-    public resolveDataThrough(agent: IRelatableSchemaAgent, linkName: string = 'list', pntr: string = '/', context?: any, forceReload?: boolean): Promise<any[]> {
+    public resolveDataThrough(agent: ISchemaAgent, linkName: string = 'list', pntr: string = '/', context?: any, forceReload?: boolean): Promise<any[]> {
         var targetSchemaId: string;
         var link = agent.schema.getLink(linkName);
         if (link == null) {
@@ -146,8 +146,8 @@ export class CachedDataProvider {
     /**
      * Resolve a list of data from the given agent.
      */
-    private resolveDataFromAgent(agent: IRelatableSchemaAgent, linkName: string, pntr?: string, context?: any): Promise<any[]> {
-        if (linkName.startsWith('list')) {
+    private resolveDataFromAgent(agent: ISchemaAgent, linkName: string, pntr?: string, context?: any): Promise<any[]> {
+        if (linkName.startsWith('list') || linkName.startsWith('collection')) {
             return agent
                 .list(1, 1000, linkName, context)
                 .then(cursor => cursor.all());
