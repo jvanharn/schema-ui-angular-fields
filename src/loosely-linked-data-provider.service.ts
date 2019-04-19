@@ -6,6 +6,7 @@ import {
     JsonFormSchema,
     SchemaHyperlinkDescriptor,
     ISchemaAgent,
+    SchemaFieldDescriptor,
 } from 'json-schema-services';
 
 import { IAgentResolver, CachedDataProvider } from './cached-data-provider.service';
@@ -107,7 +108,7 @@ export class LooselyLinkedDataProvider {
      */
     private resolveData(schema: SchemaNavigator, pntr: string, value: any): Promise<[SimplifiedResourceMapper, any[]] | null> {
         const   info = this.findOrCreateCache(schema, pntr),
-                field = info.schema.getFieldDescriptorForValue(info.fields, value);
+                field = this.findSchemaFieldDescriptorForValue(info, value);
         if (field == null) {
             debug(`[warn] unable to resolve a field-descriptor for [${schema.schemaId}${pntr}] with value "${value}"`);
             return Promise.resolve(null);
@@ -116,7 +117,7 @@ export class LooselyLinkedDataProvider {
             if (result == null) {
                 return null;
             }
-            return this.provider.resolveDataThrough(result[0], result[1], (!!field.field && !!field.field.data) ? field.field.data.pointer : void 0, {}, false)
+            return this.provider.resolveDataThrough(result[0], result[1], !!field.data ? field.data.pointer : void 0, {}, false)
                 .then(data => ([result[2], data] as [SimplifiedResourceMapper, any[]]))
         });
     }
@@ -150,10 +151,10 @@ export class LooselyLinkedDataProvider {
      * @param info
      * @param field
      */
-    private findOrCreateForValue(info: CachedPointerInfo, field: JsonFormSchema): Promise<[ISchemaAgent, string, SimplifiedResourceMapper] | null> {
+    private findOrCreateForValue(info: CachedPointerInfo, field: SchemaFieldDescriptor): Promise<[ISchemaAgent, string, SimplifiedResourceMapper] | null> {
         var result = this.resolveCollectionAgent(info.schema, field)
             .then(([agent, linkName]) =>
-                ([agent, linkName, new SimplifiedResourceMapper(field.field, agent.schema)] as [ISchemaAgent, string, SimplifiedResourceMapper]))
+                ([agent, linkName, new SimplifiedResourceMapper(field, agent.schema)] as [ISchemaAgent, string, SimplifiedResourceMapper]))
             .catch(err => {
                 debug(
                     `[warn] findOrCreateForValue; something went wrong trying to resolve an external resource to use for a value`,
@@ -170,23 +171,23 @@ export class LooselyLinkedDataProvider {
      * @param schema Original schema the field resides in.
      * @param field Linking field descriptor that describes how to reach the linked entity.
      */
-    private resolveCollectionAgent(schema: SchemaNavigator, field: JsonFormSchema): Promise<[ISchemaAgent, string]> {
-        if (!field.field || !field.field.link) {
+    private resolveCollectionAgent(schema: SchemaNavigator, field: SchemaFieldDescriptor): Promise<[ISchemaAgent, string]> {
+        if (!field || !field.link) {
             return Promise.reject(new Error(
                 'LinkedColumnDataProvider; No link defined on the given field, and thus will not be able to resolve it to an agent.'));
         }
 
-        var originalLink: SchemaHyperlinkDescriptor = schema.getLink(field.field.link);
+        var originalLink: SchemaHyperlinkDescriptor = schema.getLink(field.link);
         if (originalLink == null) {
             return Promise.reject(new Error(
-                `LinkedColumnDataProvider; The link "${field.field.link}" defined on the field "${schema.schemaId}$${field.id}" does not exist.`));
+                `LinkedColumnDataProvider; The link "${field.link}" defined on a field in "${schema.schemaId}" does not exist.`));
         }
 
         if (originalLink.rel.startsWith('list')) {
             // List
             if (!originalLink.targetSchema || !originalLink.targetSchema.$ref) {
                 return Promise.reject(new Error(
-                    `LinkedColumnDataProvider; The link "${field.field.link}" defined on the field "${schema.schemaId}$${field.id}" ` +
+                    `LinkedColumnDataProvider; The link "${field.link}" defined on a field in "${schema.schemaId}" ` +
                     'does not have a targetSchema set! This required to properly resolve it\'s collection link.'));
             }
 
@@ -217,6 +218,38 @@ export class LooselyLinkedDataProvider {
             return this.resolver.getAgent(schema.schemaId).then(agent => ([agent, originalLink.rel] as [ISchemaAgent, string]));
         }
     }
+
+    /**
+     * Determine the schema field descriptor to use to resolve a field value.
+     */
+    private findSchemaFieldDescriptorForValue(info: CachedPointerInfo, value: any): SchemaFieldDescriptor | null {
+        var field: JsonFormSchema;
+
+        // Links are mostly defined on the parent container when defining collections of references.
+        if (info.fields.length === 1 && (info.fields[0].type === 'array' || info.fields[0].type === 'object')) {
+            if (info.fields[0].field) {
+                return info.fields[0].field;
+            }
+
+            // Then we should maybe look in the items itself
+            else if (typeof info.fields[0].items === 'object') {
+                field = info.fields[0].items as JsonFormSchema;
+            }
+
+            // Maybe it has pattern properties?
+            else if (typeof info.fields[0].patternProperties === 'object' && Object.keys(info.fields[0].patternProperties).length === 1) {
+                field = info.fields[0].patternProperties[Object.keys(info.fields[0].patternProperties)[0]] as JsonFormSchema;
+            }
+        }
+        if (field == null) {
+            field = info.schema.getFieldDescriptorForValue(info.fields, value);
+        }
+
+        // Check the link for the specific value type.
+        if (field != null && !!field.field) {
+            return field.field;
+        }
+    }
 }
 
 /**
@@ -241,5 +274,5 @@ interface CachedPointerInfo {
     /**
      * Maps a field to the agent, link and mapper needed to render it's value for the given column.
      */
-    mappers: Map<JsonFormSchema, Promise<[ISchemaAgent, string, SimplifiedResourceMapper] | null>>;
+    mappers: Map<SchemaFieldDescriptor, Promise<[ISchemaAgent, string, SimplifiedResourceMapper] | null>>;
 }
