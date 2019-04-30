@@ -10,10 +10,11 @@ import {
 } from 'json-schema-services';
 
 import { IAgentResolver, CachedDataProvider } from './cached-data-provider.service';
-import { SimplifiedResourceMapper } from './simplified-resource-mapper';
+import { SimplifiedResourceMapper } from './mapper/simplified-resource-mapper';
 
 import * as _ from 'lodash';
 import debuglib from 'debug';
+import { LinkableSimplifiedResourceMapper } from './mapper/linkable-simplified-resource-mapper';
 const debug = debuglib('schema-ui:linked-column-data-provider');
 
 /**
@@ -47,15 +48,17 @@ export class LooselyLinkedDataProvider {
                 return '\u26A0';
             }
 
-            var strval = String(value);
             var [mapper, items] = data;
-            for (var item of items) {
-                // tslint:disable-next-line:triple-equals
-                if (strval == mapper.getIdentityValue(item)) {
-                    return mapper.getDisplayName(item, items);
+            return mapper.createTemplateVariableCache(items).then(cache => {
+                var strval = String(value);
+                for (var item of items) {
+                    // tslint:disable-next-line:triple-equals
+                    if (strval == mapper.getIdentityValue(item)) {
+                        return mapper.getLinkedDisplayName(cache, item);
+                    }
                 }
-            }
-            return '-';
+                return '-';
+            });
         });
     }
 
@@ -70,15 +73,18 @@ export class LooselyLinkedDataProvider {
                     return ['\u26A0'];
                 }
 
-                var result = [], strvals = vals.map(x => String(x));
                 var [mapper, items] = data;
-                for (var item of items) {
-                    // tslint:disable-next-line:triple-equals
-                    if (strvals.some(x => x == mapper.getIdentityValue(item))) {
-                        result.push(mapper.getDisplayName(item, items));
+                return mapper.createTemplateVariableCache(items).then(cache => {
+                    var result = [], strvals = vals.map(x => String(x));
+                    for (var item of items) {
+                        // tslint:disable-next-line:triple-equals
+                        if (strvals.some(x => x == mapper.getIdentityValue(item))) {
+                            result.push(mapper.getLinkedDisplayName(cache, item));
+                        }
                     }
-                }
-                return result;
+
+                    return result;
+                });
             })))
             .then(items => {
                 var result = [].concat(...items);
@@ -93,10 +99,12 @@ export class LooselyLinkedDataProvider {
      * Resolves multiple references or identity values to something that can be displayed to the user.
      */
     public resolveAllPossibleValues(schema: SchemaNavigator, pntr: string): Promise<{ label: string, value: IdentityValue }[]> {
-        return this.resolveData(schema, pntr, null).then(([mapper, items]) => items.map(item => ({
-            label: mapper.getDisplayName(item, items),
-            value: mapper.getIdentityValue(item),
-        })));
+        return this.resolveData(schema, pntr, null).then(([mapper, items]) =>
+            mapper.createTemplateVariableCache(items).then(cache =>
+                items.map(item => ({
+                    label: mapper.getLinkedDisplayName(cache, item),
+                    value: mapper.getIdentityValue(item),
+                }))));
     }
 
     /**
@@ -106,7 +114,7 @@ export class LooselyLinkedDataProvider {
      * @param col The column to resolve and fetch data for.
      * @param value The value so we can determine it's type.
      */
-    private resolveData(schema: SchemaNavigator, pntr: string, value: any): Promise<[SimplifiedResourceMapper, any[]] | null> {
+    private resolveData(schema: SchemaNavigator, pntr: string, value: any): Promise<[LinkableSimplifiedResourceMapper, any[]] | null> {
         const   info = this.findOrCreateCache(schema, pntr),
                 field = this.findSchemaFieldDescriptorForValue(info, value);
         if (field == null) {
@@ -118,7 +126,7 @@ export class LooselyLinkedDataProvider {
                 return null;
             }
             return this.provider.resolveDataThrough(result[0], result[1], !!field.data ? field.data.pointer : void 0, {}, false)
-                .then(data => ([result[2], data] as [SimplifiedResourceMapper, any[]]))
+                .then(data => ([result[2], data] as [LinkableSimplifiedResourceMapper, any[]]))
         });
     }
 
@@ -151,10 +159,10 @@ export class LooselyLinkedDataProvider {
      * @param info
      * @param field
      */
-    private findOrCreateForValue(info: CachedPointerInfo, field: SchemaFieldDescriptor): Promise<[ISchemaAgent, string, SimplifiedResourceMapper] | null> {
+    private findOrCreateForValue(info: CachedPointerInfo, field: SchemaFieldDescriptor): Promise<[ISchemaAgent, string, LinkableSimplifiedResourceMapper] | null> {
         var result = this.resolveCollectionAgent(info.schema, field)
             .then(([agent, linkName]) =>
-                ([agent, linkName, new SimplifiedResourceMapper(field, agent.schema)] as [ISchemaAgent, string, SimplifiedResourceMapper]))
+                ([agent, linkName, new LinkableSimplifiedResourceMapper(field, agent.schema, this.provider)] as [ISchemaAgent, string, LinkableSimplifiedResourceMapper]))
             .catch(err => {
                 debug(
                     `[warn] findOrCreateForValue; something went wrong trying to resolve an external resource to use for a value`,

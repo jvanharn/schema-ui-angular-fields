@@ -6,8 +6,10 @@ export * from './models/form-field-validation';
 export * from './models/registerable-form-field';
 
 export * from './pointer-tools';
-export * from './simplified-resource';
-export * from './simplified-resource-mapper';
+
+export * from './mapper/simplified-resource';
+export * from './mapper/simplified-resource-mapper';
+export * from './mapper/linkable-simplified-resource-mapper';
 
 export * from './form-field.service';
 export * from './field-context-provider.service';

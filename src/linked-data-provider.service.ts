@@ -6,8 +6,8 @@ import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, JsonSchema, SchemaH
 import { FieldContextProvider } from './field-context-provider.service';
 import { fieldComponentContextToken, FieldComponentContext } from './models/form-field-context';
 import { CachedDataProvider } from './cached-data-provider.service';
-import { SimplifiedLinkedResource } from './simplified-resource';
-import { SimplifiedResourceMapper } from './simplified-resource-mapper';
+import { SimplifiedLinkedResource } from './mapper/simplified-resource';
+import { LinkableSimplifiedResourceMapper } from './mapper/linkable-simplified-resource-mapper';
 
 import debuglib from 'debug';
 const debug = debuglib('schema-ui:linked-data-provider');
@@ -34,7 +34,7 @@ export class LinkedDataProvider {
     /**
      * Simplified resource mapper instance.
      */
-    private mapper: Promise<SimplifiedResourceMapper>;
+    private mapper: Promise<LinkableSimplifiedResourceMapper>;
 
     /**
      * Whether or not we are currently loading.
@@ -165,13 +165,13 @@ export class LinkedDataProvider {
      * @param context
      * @param forceReload
      */
-    protected getSimplifiedResourceMapper(context?: any, forceReload?: boolean): Promise<SimplifiedResourceMapper> {
+    protected getSimplifiedResourceMapper(context?: any, forceReload?: boolean): Promise<LinkableSimplifiedResourceMapper> {
         if (!forceReload && !!this.mapper) {
             return this.mapper;
         }
 
         return this.mapper = this.provider.resolveAgentChild(this.agent, this.field.meta.field.link as string, context, forceReload, true)
-            .then(([agent]) => new SimplifiedResourceMapper(this.field.meta.field, agent.schema));
+            .then(([agent]) => new LinkableSimplifiedResourceMapper(this.field.meta.field, agent.schema, this.provider));
     }
 
     /**
@@ -183,7 +183,7 @@ export class LinkedDataProvider {
      * @param includeOriginal Whether or not original.
      */
     protected mapMultipleChoice(items: any[], context: any, forceReload?: boolean, includeOriginal?: boolean): Promise<SimplifiedLinkedResource[]> {
-        return this.getSimplifiedResourceMapper(context, forceReload).then(mapper => mapper.transform(items, includeOriginal));
+        return this.getSimplifiedResourceMapper(context, forceReload).then(mapper => mapper.resolvedTransform(items, includeOriginal));
     }
 
     /**

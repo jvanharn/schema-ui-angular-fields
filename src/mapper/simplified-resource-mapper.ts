@@ -1,6 +1,8 @@
 import { SchemaNavigator, IdentityValue, SchemaFieldDescriptor, tryPointerGet } from 'json-schema-services';
+
 import { SimplifiedLinkedResource } from './simplified-resource';
 
+import cmptpl from 'string-template/compile';
 import debuglib from 'debug';
 const debug = debuglib('schema-ui:simplified-resource-mapper');
 
@@ -9,15 +11,24 @@ const debug = debuglib('schema-ui:simplified-resource-mapper');
  */
 export class SimplifiedResourceMapper {
     /**
+     * Method that automagically generates a display name for this field using its template.
+     */
+    private readonly compiledDisplaynameGenerator: (item: any) => string;
+
+    /**
      * @param field The form field descriptor of the field that refers to the external resource.
      * @param schema The targetted resource schema (by the field given below), so NOT of the schema the field resides in.
      */
     public constructor(
-        private field: SchemaFieldDescriptor,
-        private schema?: SchemaNavigator,
+        protected field: SchemaFieldDescriptor,
+        protected schema?: SchemaNavigator,
     ) {
         if (!(schema instanceof SchemaNavigator)) {
             throw new Error('SimplifiedResourceMapper.constructor; The given schema is not a SchemaNavigator!');
+        }
+
+        if (this.field.data && typeof this.field.data.displayTemplate === 'string') {
+            this.compiledDisplaynameGenerator = cmptpl(this.field.data.displayTemplate);
         }
     }
 
@@ -30,7 +41,7 @@ export class SimplifiedResourceMapper {
     public transform(items: any[], includeOriginal?: boolean): SimplifiedLinkedResource[] {
         return items
             .map(item => ({
-                name: this.getDisplayName(item, items),
+                name: this.getDisplayName(item),
                 description: this.getDescription(item),
                 order: this.getOrder(item),
                 value: this.getIdentityValue(item),
@@ -54,34 +65,16 @@ export class SimplifiedResourceMapper {
      * @param item The item to get the displayed name for.
      * @param items A complete list of all other items, used to find the parent of the current item.
      */
-    public getDisplayName(item: any, items: any[] = [item]): string {
+    public getDisplayName(item: any): string {
+        if (!!this.compiledDisplaynameGenerator) {
+            return this.compiledDisplaynameGenerator(item);
+        }
+
         if (this.field.data == null || this.field.data.label == null) {
             return item['name'] || item['displayName'] || item['internalName'] || item['entity'];
         }
-        if (this.field.data.parent && this.field.data.mergeLabelWithParents === true) {
-            return this.getDisplayNameForParent(items, item, item[this.field.data.label]);
-        }
-        return item[this.field.data.label];
-    }
 
-    /**
-     * Fetch the display name for the parent item of the same type for the given item.
-     *
-     * @param items
-     * @param item
-     * @param label
-     */
-    public getDisplayNameForParent(items: any[], item: any, label: string): string {
-        if (item[this.field.data.parent] != null) {
-            var parent = (items || []).find(x => x[this.field.data.value] === item[this.field.data.parent]);
-            if (parent != null) {
-                label = parent[this.field.data.label] + ' › ' + label;
-                if (parent[this.field.data.parent] != null) {
-                    label = this.getDisplayNameForParent(items, parent, label);
-                }
-            }
-        }
-        return label;
+        return item[this.field.data.label];
     }
 
     /**
