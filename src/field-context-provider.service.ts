@@ -697,12 +697,13 @@ export class FieldContextProvider {
      */
     private _validationResultIsEmpty(field: FormFieldViewModel<FormField<any>>): boolean {
         if (field.instance == null) {
-            return field.ctx.initialValue == null;
+            return field.ctx.initialValue === null || typeof field.ctx.initialValue === 'undefined';
         }
 
         if (field.instance.value === null || typeof field.instance.value === 'undefined') {
             return true;
         }
+
         switch (field.ctx.meta.type) {
             case 'string':
                 return (field.instance.value.length <= 0);
