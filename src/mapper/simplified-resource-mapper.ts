@@ -114,6 +114,10 @@ export class SimplifiedResourceMapper {
             return tryPointerGet(item, this.field.targetIdentity.startsWith('/') ? this.field.targetIdentity : '/' + this.field.targetIdentity);
         }
 
+        if (this.field.data && this.field.data.pointer) {
+            debug(`[warn] you need to set the data.value/targetIdentity pointer on the field if you set a sub for field that links to "${this.field.link}"`);
+        }
+
         try {
             // This will only work with listed properties (not with sub properties)
             return this.schema.getIdentityValue(item);
