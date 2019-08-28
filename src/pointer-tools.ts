@@ -1,35 +1,6 @@
 import { FieldContextProvider } from './field-context-provider.service';
 
-import * as jp from 'json-pointer';
 import * as _ from 'lodash';
-
-/**
- * Whether or not the given pointer is an relative pointer.
- *
- * Examples of relative JSON-Pointers
- * - 0 - Get our own value.
- * - 1/0 - Move up one step, and get the index 0 of the parent array.
- * - 2/highly/nested/objects - Move up 2 steps, and resolve the rest as an JSON-Pointer
- * - 0# - Get the key of a parent object.
- * @link rfc https://tools.ietf.org/html/draft-handrews-relative-json-pointer-00
- *
- * @param pointer
- */
-export function isRelativePointer(pointer: string): boolean {
-    return !Number.isNaN(parseInt(String(pointer).split('/').shift(), 10));
-}
-
-/**
- * Whether or not the given pointer is an absolutely pointer JSON-pointer. (With a schema included).
- *
- * Examples of absolute JSON-Pointers:
- * - https://example.org/schemas/lipsum#/somewhere/in/the/object
- * - https://example.org/schemas/lipsum#/0/somewhere/in/the/object
- * @param pointer
- */
-export function isAbsolutePointer(pnt: string): boolean {
-    return !isRelativePointer(pnt) && String(pnt).indexOf('#') >= 0;
-}
 
 /**
  * Whether or not the pointer is a regular JSON-Pointer.

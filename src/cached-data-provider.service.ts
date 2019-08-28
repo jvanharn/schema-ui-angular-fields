@@ -1,9 +1,8 @@
 import { Injectable, Inject } from '@angular/core';
-import { IRelatableSchemaAgent, ISchemaAgent, SchemaNavigator } from 'json-schema-services';
+import { IRelatableSchemaAgent, ISchemaAgent, SchemaNavigator, pointerGet } from 'json-schema-services';
 
 import { LinkedDataCache } from './linked-data-cache.service';
 
-import * as pointer from 'json-pointer';
 import debuglib from 'debug';
 const debug = debuglib('schema-ui:data-provider');
 
@@ -158,7 +157,7 @@ export class CachedDataProvider {
                 .then(item => {
                     if (typeof pntr === 'string' && pntr.length > 1) {
                         try {
-                            return pointer.get(item, pntr) || [];
+                            return pointerGet(item, pntr) || [];
                         }
                         catch (e) {
                             debug(`[warn] unable to get the data for pointer "${pntr}"`);

@@ -18,14 +18,19 @@ import {
     ValidationResult,
     IdentityValues,
     ISchemaCache,
+    pointerGet,
+    tryPointerGet,
+    pointerSet,
+    pointerRemove,
+    pointerHas,
+    isRelativeJsonPointer,
+    isAbsoluteJsonPointer,
 } from 'json-schema-services';
 
 import { FormField, PatchableFormField } from './models/form-field';
 import { FieldComponentContext, FormModes } from './models/form-field-context';
 import { ValidatableFormField, FormFieldValidationResult, ValidationLevel, FormFieldsetFieldValidationResult } from './models/form-field-validation';
 import {
-    isRelativePointer,
-    isAbsolutePointer,
     parseRelativePointer,
     parseAbsolutePointer,
     traverseFieldContextsWithRelativePointer,
@@ -33,7 +38,6 @@ import {
 } from './pointer-tools';
 
 import * as _ from 'lodash';
-import * as pointer from 'json-pointer';
 
 import debuglib from 'debug';
 const debug = debuglib('schema-ui:field-context-provider');
@@ -401,14 +405,14 @@ export class FieldContextProvider {
 
         var result: any;
         try {
-            result = pointer.get(this.initialValues, field.pointer);
+            result = pointerGet(this.initialValues, field.pointer);
         }
         catch (e) {
             if (this.isCreateMode()) {
                 var split = field.pointer.split('/');
                 if (split.length >= 2) {
                     var joined = split.slice(0, split.length - 2).join('/');
-                    if (!pointer.has(this.initialValues, joined)) {
+                    if (!pointerHas(this.initialValues, joined)) {
                         result = this.getFieldDefaultValue(field);
                     }
                 }
@@ -431,13 +435,7 @@ export class FieldContextProvider {
             return void 0;
         }
 
-        try {
-            return pointer.get(this.initialValues, pnt);
-        }
-        catch (e) {
-            //debug(`getPointerInitialValue: something went wrong trying to fetch the initialValue for the pointer "${pnt}".`, e);
-            return void 0;
-        }
+        return tryPointerGet(this.initialValues, pnt);
     }
 
     /**
@@ -533,10 +531,10 @@ export class FieldContextProvider {
      * @param relativeToPointer Relative to what path/field should the pointer be resolved, reuired for relative pointer support.
      */
     public getFieldValueByPointer(pointer: string, relativeToPointer: string = '/'): any | void {
-        if (isRelativePointer(pointer)) {
+        if (isRelativeJsonPointer(pointer)) {
             return traverseFieldContextsWithRelativePointer(parseRelativePointer(pointer), relativeToPointer, this);
         }
-        else if (isAbsolutePointer(pointer)) {
+        else if (isAbsoluteJsonPointer(pointer)) {
             return traverseFieldContextsWithAbsolutePointer(parseAbsolutePointer(pointer), this);
         }
 
@@ -739,7 +737,7 @@ export class FieldContextProvider {
             if (results.every(x => x.valid)) {
                 var validation: Promise<ValidationResult>;
                 if (set.pointer.length > 1) {
-                    validation = this.validator.then(x => x.validatePointer(set.pointer, pointer.get(this.getData(set.id), set.pointer)));
+                    validation = this.validator.then(x => x.validatePointer(set.pointer, tryPointerGet(this.getData(set.id), set.pointer)));
                 }
                 else {
                     validation = this.validator.then(x => x.validate(this.getData()))
@@ -1124,8 +1122,8 @@ export class FieldContextProvider {
                 continue;
             }
 
-            if (fieldset.pointer && fieldset.pointer.length > 1 && !pointer.has(result, fieldset.pointer)) {
-                pointer.set(result, fieldset.pointer, {});
+            if (fieldset.pointer && fieldset.pointer.length > 1 && !pointerHas(result, fieldset.pointer)) {
+                pointerSet(result, fieldset.pointer, {});
             }
 
             for (var field of fieldset.fields) {
@@ -1135,10 +1133,10 @@ export class FieldContextProvider {
 
                 if (!!field.instance) {
                     if (!this.isUndefinedValue(field)) {
-                        pointer.set(result, field.ctx.pointer, field.instance.value);
+                        pointerSet(result, field.ctx.pointer, field.instance.value);
                     }
-                    else if (pointer.has(result, field.ctx.pointer)) {
-                        pointer.remove(result, field.ctx.pointer);
+                    else if (pointerHas(result, field.ctx.pointer)) {
+                        pointerRemove(result, field.ctx.pointer);
                     }
                 }
             }
@@ -1165,8 +1163,8 @@ export class FieldContextProvider {
                 continue;
             }
 
-            if (fieldset.pointer && pointer.length > 1 && !pointer.has(result, fieldset.pointer)) {
-                pointer.set(result, fieldset.pointer, {});
+            if (fieldset.pointer && fieldset.pointer.length > 1 && !pointerHas(result, fieldset.pointer)) {
+                pointerSet(result, fieldset.pointer, {});
             }
 
             for (var field of fieldset.fields) {
@@ -1176,15 +1174,15 @@ export class FieldContextProvider {
 
                 if (!!field.instance) {
                     if (!this.isUndefinedValue(field)) {
-                        pointer.set(result, field.ctx.pointer, field.instance.value);
+                        pointerSet(result, field.ctx.pointer, field.instance.value);
                     }
-                    else if (pointer.has(result, field.ctx.pointer)) {
-                        pointer.remove(result, field.ctx.pointer);
+                    else if (pointerHas(result, field.ctx.pointer)) {
+                        pointerRemove(result, field.ctx.pointer);
                     }
                 }
                 else {
                     if (!!field.ctx.pointer) {
-                        pointer.set(result, field.ctx.pointer, field.ctx.initialValue);
+                        pointerSet(result, field.ctx.pointer, field.ctx.initialValue);
                     }
                     else {
                         result[field.ctx.name || field.ctx.id] = field.ctx.initialValue;
@@ -1209,7 +1207,7 @@ export class FieldContextProvider {
                 }
 
                 if (!!field.instance && !!field.instance.dirty && !this.isUndefinedValue(field)) {
-                    pointer.set(result, field.ctx.pointer, field.instance.value);
+                    pointerSet(result, field.ctx.pointer, field.instance.value);
                 }
             }
         }
@@ -1273,7 +1271,7 @@ export class FieldContextProvider {
                     var path = field.ctx.pointer || '/' + field.ctx.name, iv;
 
                     try {
-                        iv = pointer.get(this.initialValues, path);
+                        iv = pointerGet(this.initialValues, path);
                     }
                     catch (e) { }
 
@@ -1355,8 +1353,8 @@ export class FieldContextProvider {
             mode = 'view';
         }
         else if (isMultiDef && (
-            (!outlined && !pointer.has(initialValues, pntr)) ||
-            (!!outlined && !pointer.has(this.initialValues, pntr))
+            (!outlined && !pointerHas(initialValues, pntr)) ||
+            (!!outlined && !pointerHas(this.initialValues, pntr))
         )) { // The key doesn't yet exist, and is therefore new.
             mode = 'create';
         }
