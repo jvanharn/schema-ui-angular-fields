@@ -410,8 +410,8 @@ export class FieldContextProvider {
         catch (e) {
             if (this.isCreateMode()) {
                 var split = field.pointer.split('/');
-                if (split.length >= 2) {
-                    var joined = split.slice(0, split.length - 2).join('/');
+                if (split.length > 2) {
+                    var joined = split.slice(0, split.length - 1).join('/');
                     if (!pointerHas(this.initialValues, joined)) {
                         result = this.getFieldDefaultValue(field);
                     }
