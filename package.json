@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/ng-packagr/package.schema.json",
   "name": "schema-ui-angular-fields",
-  "version": "4.1.1",
+  "version": "4.1.2",
   "description": "Schema UI - Angular Fields Implementation",
   "ngPackage": {
     "lib": {
@@ -19,7 +19,7 @@
   "license": "MIT",
   "dependencies": {
     "debug": "^4.1.1",
-    "json-schema-services": "^0.12.3",
+    "json-schema-services": "^0.12.8",
     "lodash": "^4.17.15",
     "string-template": "^1.0.0"
   },
@@ -27,9 +27,9 @@
     "@angular/compiler": "^8.x",
     "@angular/compiler-cli": "^8.x",
     "@angular/core": "^8.x",
-    "@types/lodash": "^4.14.138",
-    "ng-packagr": "^5.5.0",
-    "rxjs": "^6.5.2",
+    "@types/lodash": "^4.14.147",
+    "ng-packagr": "^5.7.1",
+    "rxjs": "^6.5.3",
     "typescript": "3.5.x",
     "zone.js": "^0.10.2"
   },

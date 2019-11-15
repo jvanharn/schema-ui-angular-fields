@@ -76,8 +76,14 @@ export class LinkedDataProvider {
             }
         }
 
-        return this.data = this.provider.resolveDataThrough(
+        this.loading = true;
+        this.data = this.provider.resolveDataThrough(
             this.agent, this.field.meta.field.link as string, !!this.field.meta.field.data ? this.field.meta.field.data.pointer : void 0, context, forceReload);
+
+        return this.data.then(result => {
+            this.loading = false;
+            return result;
+        });
     }
 
     /**
