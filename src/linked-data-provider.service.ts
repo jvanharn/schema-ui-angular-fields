@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@angular/core';
 import { from, concat, of, merge, Observable, throwError } from 'rxjs';
-import { concatMap, debounceTime, map } from 'rxjs/operators';
+import { concatMap, debounceTime, map, distinctUntilChanged } from 'rxjs/operators';
 import { ISchemaAgent, IRelatableSchemaAgent, IdentityValue, JsonSchema, SchemaHyperlinkDescriptor } from 'json-schema-services';
 
 import { FieldContextProvider } from './field-context-provider.service';
@@ -217,10 +217,10 @@ export class LinkedDataProvider {
                 var field = this.context.findByPointer(pointers[key]);
                 if (field != null && field.instance != null) {
                     if (this.context.isCreateMode()) {
-                        observables.push(field.instance.changed);
+                        observables.push(field.instance.changed.pipe(distinctUntilChanged()));
                     }
                     else {
-                        observables.push(concat(of(field.ctx.initialValue), field.instance.changed));
+                        observables.push(concat(of(field.ctx.initialValue), field.instance.changed).pipe(distinctUntilChanged()));
                     }
                 }
             }
