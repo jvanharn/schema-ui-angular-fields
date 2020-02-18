@@ -166,6 +166,9 @@ export class CachedDataProvider {
                     else if (Array.isArray(item)) {
                         return item;
                     }
+                    else if (typeof item === 'object' && item != null) {
+                        return [item];
+                    }
 
                     debug(`[warn] the item retrieved from link ${linkName} is not an array! returning empty set.`);
                     return [];
