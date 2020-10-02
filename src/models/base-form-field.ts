@@ -13,7 +13,7 @@ export abstract class BaseFormField<T> implements FormField<T> {
     /**
      * Whether or not the field is loading.
      */
-    public loading: boolean; //default: false
+    public abstract loading: boolean; //default: false
 
     /**
      * Whether or not this field is disabled.
