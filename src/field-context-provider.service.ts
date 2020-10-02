@@ -1,4 +1,4 @@
-import { Inject, Optional } from '@angular/core';
+import { Inject, Injectable, Optional } from '@angular/core';
 import { MessageBundle } from '@angular/compiler';
 import { Subject, Subscription, timer } from 'rxjs';
 import { debounce, map, bufferTime, filter } from 'rxjs/operators';
@@ -45,6 +45,8 @@ const debug = debuglib('schema-ui:field-context-provider');
 /**
  * Class that maintains a list of fieldsets and fields for a form builder.
  */
+// @dynamic
+@Injectable()
 export class FieldContextProvider {
     /**
      * Validator used to validate fields in this context.

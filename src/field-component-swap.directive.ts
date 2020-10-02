@@ -4,6 +4,7 @@ import {
     Output,
     EventEmitter,
     Type,
+    OnInit,
     OnDestroy,
 
     ComponentRef,
@@ -44,7 +45,7 @@ export const formFieldDescriptorToken = new InjectionToken('ExtendedFieldDescrip
 @Directive({
     selector: '[fieldSwitch]'
 })
-export class FieldComponentSwitchDirective<T extends FormField<any>> implements OnDestroy {
+export class FieldComponentSwitchDirective<T extends FormField<any>> implements OnInit, OnDestroy {
     /**
      * Component that is loaded.
      */
@@ -64,6 +65,13 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
      * Change subscriber for the field context provider, if assigned.
      */
     private changeSubscriber: Subscription;
+
+    /**
+     * Property that is flipped once ngOninit is called.
+     *
+     * Used to make sure that when a user changes the fieldSwitch property, this field is actually changed.
+     */
+    private isInitialized: boolean = false;
 
     /**
      * (Optionally) The injector to use to resolve dependencies.
@@ -109,9 +117,29 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
             return;
         }
 
+        if (this.isInitialized) {
+            this.applyFieldContextChange(context);
+        }
+        else {
+            this.context = context;
+        }
+    }
+
+    public constructor(
+        @Inject(ComponentFactoryResolver) private cfr: ComponentFactoryResolver,
+        @Inject(ViewContainerRef) private vcRef: ViewContainerRef,
+        @Inject(TemplateRef) private tRef: TemplateRef<Object>,
+        @Inject(FormFieldService) private fields: FormFieldService,
+    ) { }
+
+    /**
+     * Apply and initialize a new field context for this directive.
+     * @param context
+     */
+    private applyFieldContextChange(context: FieldComponentContext): void {
         // Refresh/get the component to initialize based on the meta-data (if we didnt already).
         if (!this.component || (!!this.context && this.context.meta.field.type !== context.meta.field.type)) {
-            this.component = this.fields.getFieldComponentByName<T>(context.meta.field.type, this.fieldSwitchInjector || this.vcRef.parentInjector);
+            this.component = this.fields.getFieldComponentByName<T>(context.meta.field.type, this.fieldSwitchInjector || this.vcRef.injector);
             if (!this.component) {
                 this.error(`Component could not be found for field.type "${context.meta.field.type}".`);
                 return;
@@ -133,8 +161,14 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
                     provide: LinkedDataProvider,
                     useFactory: linkedDataProviderFactory,
                     deps: ['ISchemaAgent', fieldComponentContextToken, CachedDataProvider, FieldContextProvider],
-                }
+                },
             ]);
+            if (this.fieldSwitchContextProvider != null) {
+                bindings = bindings.concat(ReflectiveInjector.resolve([{
+                    provide: FieldContextProvider,
+                    useValue: this.fieldSwitchContextProvider,
+                }]));
+            }
             if (Array.isArray(this.fieldSwitchBindings) && this.fieldSwitchBindings.length > 0) {
                 bindings = bindings.concat(this.fieldSwitchBindings);
             }
@@ -145,7 +179,7 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
         }
 
         // Construct the Injector needed to supply injection to the comopnent we will be creating.
-        let injector = ReflectiveInjector.fromResolvedProviders(bindings, this.fieldSwitchInjector || this.vcRef.parentInjector);
+        let injector = ReflectiveInjector.fromResolvedProviders(bindings, this.fieldSwitchInjector || this.vcRef.injector);
 
         // Create component using factory resolver (if it is not registered as entry component, this will fail)
         try {
@@ -198,13 +232,6 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
         this.context = context;
     }
 
-    public constructor(
-        @Inject(ComponentFactoryResolver) private cfr: ComponentFactoryResolver,
-        @Inject(ViewContainerRef) private vcRef: ViewContainerRef,
-        @Inject(TemplateRef) private tRef: TemplateRef<Object>,
-        @Inject(FormFieldService) private fields: FormFieldService,
-    ) { }
-
     /**
      * Subscribe to change events, in order to notify the context.
      */
@@ -246,6 +273,14 @@ export class FieldComponentSwitchDirective<T extends FormField<any>> implements 
             this.changeSubscriber.unsubscribe();
             this.changeSubscriber = void 0;
         }
+    }
+
+    /**
+     * Called when this component first gets initialized.
+     */
+    public ngOnInit(): void {
+        this.isInitialized = true;
+        this.applyFieldContextChange(this.context);
     }
 
     /**

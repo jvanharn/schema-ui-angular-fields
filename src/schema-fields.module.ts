@@ -26,7 +26,7 @@ export class SchemaFieldsModule {
      * @param entryFields A list of dynamically inserted fields (components implementing FormField).
      * @returns ModuleWithProviders
      */
-    public static forRoot(entryFields?: formFieldRegistration[]): ModuleWithProviders {
+    public static forRoot(entryFields?: formFieldRegistration[]): ModuleWithProviders<SchemaFieldsModule> {
         return {
             ngModule: SchemaFieldsModule,
             providers: [
@@ -43,7 +43,7 @@ export class SchemaFieldsModule {
      * @param entryFields A list of dynamically inserted fields (components implementing FormField).
      * @returns ModuleWithProviders
      */
-    public static withFields(entryFields?: formFieldRegistration[]): ModuleWithProviders {
+    public static withFields(entryFields?: formFieldRegistration[]): ModuleWithProviders<SchemaFieldsModule> {
         return {
             ngModule: SchemaFieldsModule,
             providers: FormFieldService.provideFormFields(entryFields || []),
